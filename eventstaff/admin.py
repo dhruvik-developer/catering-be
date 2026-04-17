@@ -1,7 +1,6 @@
 from django.contrib import admin
-from django.db.models import Sum, Count, Q
+
 from .models import EventStaffAssignment, FixedStaffSalaryPayment, Staff
-from eventbooking.models import EventBooking
 
 
 @admin.register(Staff)
@@ -9,13 +8,14 @@ class StaffAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "phone",
+        "user_account",
         "role",
         "staff_type",
         "is_active",
         "per_person_rate",
     )
     list_filter = ("role", "staff_type", "is_active")
-    search_fields = ("name", "phone")
+    search_fields = ("name", "phone", "user_account__username")
     list_editable = ("is_active",)
 
 
@@ -60,13 +60,6 @@ class EventStaffAssignmentAdmin(admin.ModelAdmin):
             },
         ),
     )
-
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-
-
-# To add summary functions to Event detail page without modifying eventbooking app directly
-# We can create a proxy model or inline admin, but for the event page list view:
 
 
 class EventStaffAssignmentInline(admin.TabularInline):

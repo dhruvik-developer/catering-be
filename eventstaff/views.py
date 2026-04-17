@@ -1,29 +1,32 @@
 from decimal import Decimal
 
-from rest_framework import viewsets
+from django.db.models import Count, Q, Sum
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, viewsets, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import filters
-from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Sum, Count, Q
+from rest_framework.permissions import AllowAny
+
+from eventbooking.models import EventBooking
+from radha.Utils.permissions import IsAdminUserOrReadOnly
+
 from .models import (
     EventStaffAssignment,
     FixedStaffSalaryPayment,
     Staff,
     StaffRole,
-    WaiterType,
     StaffWithdrawal,
+    WaiterType,
 )
 from .serializers import (
     EventStaffAssignmentSerializer,
     FixedStaffSalaryPaymentSerializer,
-    StaffSerializer,
     StaffRoleSerializer,
-    WaiterTypeSerializer,
+    StaffSerializer,
+    StaffPublicRegistrationSerializer,
     StaffWithdrawalSerializer,
+    WaiterTypeSerializer,
 )
-from eventbooking.models import EventBooking
-from radha.Utils.permissions import IsAdminUserOrReadOnly
 
 
 def decimal_to_string(value):
@@ -31,10 +34,6 @@ def decimal_to_string(value):
 
 
 class StaffRoleViewSet(viewsets.ModelViewSet):
-    """
-    CRUD API for Staff Roles (e.g. Waiter, Manager, Chef)
-    """
-
     queryset = StaffRole.objects.all().order_by("name")
     serializer_class = StaffRoleSerializer
     permission_classes = [IsAdminUserOrReadOnly]
@@ -48,10 +47,6 @@ class StaffRoleViewSet(viewsets.ModelViewSet):
 
 
 class WaiterTypeViewSet(viewsets.ModelViewSet):
-    """
-    CRUD API for Waiter Types (VIP, VVIP, Normal, Special Couple, etc.)
-    """
-
     queryset = WaiterType.objects.all().order_by("name")
     serializer_class = WaiterTypeSerializer
     permission_classes = [IsAdminUserOrReadOnly]
@@ -66,11 +61,9 @@ class WaiterTypeViewSet(viewsets.ModelViewSet):
 
 
 class StaffViewSet(viewsets.ModelViewSet):
-    """
-    CRUD API for Staff
-    """
-
-    queryset = Staff.objects.all().order_by("-created_at")
+    queryset = Staff.objects.select_related("role", "waiter_type", "user_account").all().order_by(
+        "-created_at"
+    )
     serializer_class = StaffSerializer
     permission_classes = [IsAdminUserOrReadOnly]
     filter_backends = [
@@ -79,21 +72,20 @@ class StaffViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter,
     ]
     filterset_fields = ["role", "staff_type", "is_active"]
-    search_fields = ["name", "phone"]
+    search_fields = ["name", "phone", "user_account__username"]
     ordering_fields = ["name", "created_at", "per_person_rate"]
 
     @action(detail=False, methods=["get"], url_path="waiters")
     def waiters(self, request):
-        """Return waiters (role=Waiter) with per-person rates and types."""
         role_name = request.query_params.get("role", "Waiter")
         waiter_type_name = request.query_params.get("waiter_type")
 
-        filters = {"role__name__iexact": role_name}
+        query_filters = {"role__name__iexact": role_name}
         if waiter_type_name:
-            filters["waiter_type__name__iexact"] = waiter_type_name
+            query_filters["waiter_type__name__iexact"] = waiter_type_name
 
         waiters = (
-            Staff.objects.filter(**filters)
+            Staff.objects.filter(**query_filters)
             .values(
                 "id",
                 "name",
@@ -105,24 +97,28 @@ class StaffViewSet(viewsets.ModelViewSet):
                 "role__name",
                 "waiter_type__name",
                 "waiter_type__per_person_rate",
+                "user_account__username",
             )
             .order_by("name")
         )
 
         result = []
-        for w in waiters:
+        for waiter in waiters:
             result.append(
                 {
-                    "id": w["id"],
-                    "name": w["name"],
-                    "phone": w["phone"],
-                    "staff_type": w["staff_type"],
-                    "role": w["role__name"],
-                    "waiter_type": w.get("waiter_type__name"),
-                    "waiter_type_rate": float(w.get("waiter_type__per_person_rate") or 0.0),
-                    "per_person_rate": float(w["per_person_rate"] or 0.0),
-                    "fixed_salary": float(w["fixed_salary"] or 0.0),
-                    "is_active": w["is_active"],
+                    "id": waiter["id"],
+                    "name": waiter["name"],
+                    "phone": waiter["phone"],
+                    "staff_type": waiter["staff_type"],
+                    "role": waiter["role__name"],
+                    "waiter_type": waiter.get("waiter_type__name"),
+                    "waiter_type_rate": float(
+                        waiter.get("waiter_type__per_person_rate") or 0.0
+                    ),
+                    "per_person_rate": float(waiter["per_person_rate"] or 0.0),
+                    "fixed_salary": float(waiter["fixed_salary"] or 0.0),
+                    "is_active": waiter["is_active"],
+                    "linked_username": waiter.get("user_account__username"),
                 }
             )
 
@@ -185,38 +181,42 @@ class StaffViewSet(viewsets.ModelViewSet):
         months_passed = 0
         if staff.joining_date:
             today = django.utils.timezone.now().date()
-            
-            # Calculate full calendar months difference
             years_diff = today.year - staff.joining_date.year
             months_diff = today.month - staff.joining_date.month
-            
             months_passed = years_diff * 12 + months_diff
-            
-            # If today's day of month is earlier than joining date's day of month, 
-            # subtract 1 to only count fully passed months (acts like relativedelta)
+
             if today.day < staff.joining_date.day:
                 months_passed -= 1
-                
-            # Fallback to 0 if negative
+
             if months_passed < 0:
                 months_passed = 0
-            
-        # Calculate Pending Withdrawals
-        pending_withdrawals = staff.withdrawals.filter(is_adjusted=False)
-        total_pending_withdrawals = pending_withdrawals.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
-        # Get last payment end date
-        last_payment = salary_payments.first() # It's ordered by -start_date
-        last_payment_end_date = last_payment.end_date.strftime("%Y-%m-%d") if last_payment else None
-            
+        pending_withdrawals = staff.withdrawals.filter(is_adjusted=False)
+        total_pending_withdrawals = (
+            pending_withdrawals.aggregate(total=Sum("amount"))["total"]
+            or Decimal("0.00")
+        )
+
+        last_payment = salary_payments.first()
+        last_payment_end_date = (
+            last_payment.end_date.strftime("%Y-%m-%d") if last_payment else None
+        )
+
         final_response = {
             "staff_id": staff.id,
             "staff_name": staff.name,
             "staff_type": staff.staff_type,
             "role_name": staff.role.name if staff.role else None,
-            "joining_date": staff.joining_date.strftime("%Y-%m-%d") if staff.joining_date else None,
+            "linked_username": (
+                staff.user_account.username if staff.user_account else None
+            ),
+            "joining_date": (
+                staff.joining_date.strftime("%Y-%m-%d") if staff.joining_date else None
+            ),
             "months_passed": months_passed,
-            "pending_months": decimal_to_string(Decimal(str(months_passed)) - paid_months_equivalent),
+            "pending_months": decimal_to_string(
+                Decimal(str(months_passed)) - paid_months_equivalent
+            ),
             "total_pending_withdrawals": decimal_to_string(total_pending_withdrawals),
             "last_payment_end_date": last_payment_end_date,
             "fixed_salary": decimal_to_string(fixed_salary),
@@ -251,10 +251,6 @@ class StaffViewSet(viewsets.ModelViewSet):
 
 
 class FixedStaffSalaryPaymentViewSet(viewsets.ModelViewSet):
-    """
-    CRUD API for fixed staff monthly salary payments
-    """
-
     serializer_class = FixedStaffSalaryPaymentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
     filter_backends = [
@@ -292,53 +288,43 @@ class FixedStaffSalaryPaymentViewSet(viewsets.ModelViewSet):
         months_count = serializer.validated_data["months_count"]
         fixed_salary = staff.fixed_salary or Decimal("0.00")
         gross_amount = fixed_salary * Decimal(str(months_count))
-        
-        # Deduct withdrawals
-        pending_withdrawals = staff.withdrawals.filter(is_adjusted=False).order_by("created_at")
-        total_withdrawal_amount = pending_withdrawals.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-        
-        # Simple Logic: Deduct the pending total from standard gross. 
-        # (Assuming the frontend form enforces paid_amount = gross - pending_withdrawals)
-        # If total_withdrawal_amount > gross_amount, the frontend handles preventing payment 
-        # or we just mark them adjusted right now. 
-        
+
+        pending_withdrawals = staff.withdrawals.filter(is_adjusted=False).order_by(
+            "created_at"
+        )
+        total_withdrawal_amount = (
+            pending_withdrawals.aggregate(total=Sum("amount"))["total"]
+            or Decimal("0.00")
+        )
+
         withdrawal_deduction = min(total_withdrawal_amount, gross_amount)
-        
         payment = serializer.save(withdrawal_deduction=withdrawal_deduction)
-        
-        # Mark used withdrawals as adjusted. If partial, we just mark oldest ones fully adjusted until budget runs out
+
         remaining_deduction_budget = withdrawal_deduction
-        for w in pending_withdrawals:
-            if remaining_deduction_budget >= w.amount:
-                w.is_adjusted = True
-                w.adjusted_in_payment = payment
-                w.save()
-                remaining_deduction_budget -= w.amount
+        for withdrawal in pending_withdrawals:
+            if remaining_deduction_budget >= withdrawal.amount:
+                withdrawal.is_adjusted = True
+                withdrawal.adjusted_in_payment = payment
+                withdrawal.save()
+                remaining_deduction_budget -= withdrawal.amount
             elif remaining_deduction_budget > 0:
-                # Partially adjusting a withdrawal involves making a new unadjusted one out of the excess
-                excess = w.amount - remaining_deduction_budget
-                w.amount = remaining_deduction_budget
-                w.is_adjusted = True
-                w.adjusted_in_payment = payment
-                w.save()
-                
-                # create explicit leftover
+                excess = withdrawal.amount - remaining_deduction_budget
+                withdrawal.amount = remaining_deduction_budget
+                withdrawal.is_adjusted = True
+                withdrawal.adjusted_in_payment = payment
+                withdrawal.save()
+
                 StaffWithdrawal.objects.create(
                     staff=staff,
                     amount=excess,
-                    payment_date=payment.payment_date or w.payment_date,
-                    note=f"Remainder from partial adjustment of previous advance.",
-                    is_adjusted=False
+                    payment_date=payment.payment_date or withdrawal.payment_date,
+                    note="Remainder from partial adjustment of previous advance.",
+                    is_adjusted=False,
                 )
-                remaining_deduction_budget = Decimal("0.00")
                 break
 
 
 class StaffWithdrawalViewSet(viewsets.ModelViewSet):
-    """
-    CRUD API for Staff Withdrawals (Advances)
-    """
-
     queryset = StaffWithdrawal.objects.all().order_by("-payment_date", "-created_at")
     serializer_class = StaffWithdrawalSerializer
     permission_classes = [IsAdminUserOrReadOnly]
@@ -360,15 +346,6 @@ class StaffWithdrawalViewSet(viewsets.ModelViewSet):
 
 
 class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
-    """
-    CRUD API for Event Staff Assignments
-
-    Supports filtering by:
-      ?staff_type=Agency|Fixed|Contract   (shorthand for staff__staff_type)
-      ?session=<id>
-      ?payment_status=Pending|Partial|Paid
-    """
-
     serializer_class = EventStaffAssignmentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
     filter_backends = [
@@ -393,7 +370,6 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
             .order_by("-created_at")
         )
 
-        # Allow ?staff_type=Agency  (friendlier alias for staff__staff_type)
         staff_type = self.request.query_params.get("staff_type")
         if staff_type:
             qs = qs.filter(staff__staff_type=staff_type)
@@ -402,9 +378,6 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="event-summary")
     def event_summary(self, request):
-        """
-        Return event-wise summary: total labor count, total waiter count, total payment, total paid, total pending
-        """
         events = (
             EventBooking.objects.annotate(
                 total_labor=Count(
@@ -455,4 +428,34 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
                 "message": "Event staff summary fetched successfully",
                 "data": data,
             }
+        )
+
+
+class StaffRegistrationAPIView(generics.GenericAPIView):
+    """
+    Public ViewSet for Staff Registration
+    """
+
+    serializer_class = StaffPublicRegistrationSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {
+                    "status": True,
+                    "message": "Registration successful. You can log in now.",
+                    "data": {},
+                },
+                status=201,
+            )
+
+        error_messages = []
+        for field, errors in serializer.errors.items():
+            error_messages.extend(errors)
+
+        return Response(
+            {"status": False, "message": error_messages[0], "data": {}}, status=200
         )

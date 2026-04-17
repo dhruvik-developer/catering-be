@@ -1,6 +1,8 @@
 from datetime import date as current_date
 from decimal import Decimal
+
 import django.utils.timezone
+from django.conf import settings
 from django.db import models
 
 from eventbooking.models import EventSession
@@ -65,9 +67,24 @@ class Staff(models.Model):
         ("Contract", "Contract"),
     )
 
+    user_account = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="staff_profile",
+        verbose_name="Login User",
+        help_text="Optional login account for this staff member.",
+    )
     name = models.CharField("Staff Name", max_length=150)
     phone = models.CharField("Phone Number", max_length=20, blank=True, null=True)
-    role = models.ForeignKey(StaffRole, on_delete=models.RESTRICT, verbose_name="Role")
+    role = models.ForeignKey(
+        StaffRole,
+        on_delete=models.SET_NULL,
+        verbose_name="Role",
+        blank=True,
+        null=True,
+    )
     staff_type = models.CharField(
         "Staff Type", max_length=20, choices=STAFF_TYPE_CHOICES, default="Contract"
     )
@@ -87,7 +104,12 @@ class Staff(models.Model):
         "Paid Per Person (Rate)", max_digits=10, decimal_places=2, default=0.00
     )
     is_active = models.BooleanField("Is Active", default=True)
-    joining_date = models.DateField("Joining Date", default=django.utils.timezone.now, blank=True, null=True)
+    joining_date = models.DateField(
+        "Joining Date",
+        default=django.utils.timezone.localdate,
+        blank=True,
+        null=True,
+    )
 
     created_at = models.DateTimeField(default=django.utils.timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -100,7 +122,21 @@ class Staff(models.Model):
         waiter_category = (
             self.waiter_type.name if self.waiter_type else "No Waiter Type"
         )
-        return f"{self.name} ({self.role.name if self.role else 'Unassigned'} - {self.staff_type} - {waiter_category})"
+        login_label = (
+            self.user_account.username if self.user_account else "No Login"
+        )
+        return (
+            f"{self.name} ({self.role.name if self.role else 'Unassigned'} - "
+            f"{self.staff_type} - {waiter_category} - {login_label})"
+        )
+
+    def save(self, *args, **kwargs):
+        if self.user_account:
+            if not self.user_account.first_name:
+                self.user_account.first_name = self.name
+            self.user_account.is_active = self.is_active
+            self.user_account.save(update_fields=["first_name", "is_active"])
+        super().save(*args, **kwargs)
 
 
 class StaffWithdrawal(models.Model):
@@ -132,7 +168,7 @@ class StaffWithdrawal(models.Model):
         ordering = ("-payment_date", "-created_at")
 
     def __str__(self):
-        return f"{self.staff.name} - ₹{self.amount} on {self.payment_date}"
+        return f"{self.staff.name} - Rs. {self.amount} on {self.payment_date}"
 
 
 class EventStaffAssignment(models.Model):
@@ -218,18 +254,11 @@ class EventStaffAssignment(models.Model):
         return f"{self.staff.name} at {booking_name} ({self.session.event_date})"
 
     def save(self, *args, **kwargs):
-        # 1. Determine effective calculation based on Staff Type
         if self.staff.staff_type == "Fixed":
-            # For "Fixed" staff, their pay is tracked via monthly salary separately,
-            # so the per-event charge is 0.
             self.total_amount = Decimal("0.00")
-
-            # If the user tries to override the per_person_rate for a Fixed staff, clear it
             if self.per_person_rate is not None:
                 self.per_person_rate = None
-
         else:
-            # For "Agency" or "Contract", pay is per person rate * total_days
             effective_rate = (
                 self.per_person_rate
                 if self.per_person_rate is not None
@@ -241,14 +270,11 @@ class EventStaffAssignment(models.Model):
                 * Decimal(str(self.number_of_persons))
             )
 
-        # 3. Prevent overpayment logically, though sometimes it happens, keeping it simple here
         if self.paid_amount is None:
             self.paid_amount = Decimal("0.00")
 
-        # 4. Automatically calculate remaining_amount
         self.remaining_amount = self.total_amount - Decimal(str(self.paid_amount))
 
-        # 5. Automatically determine payment_status
         if self.paid_amount <= 0:
             self.payment_status = "Pending"
         elif self.paid_amount >= self.total_amount:
@@ -256,7 +282,6 @@ class EventStaffAssignment(models.Model):
         else:
             self.payment_status = "Partial"
 
-        # Default role to staff's default if not provided
         if not self.role_at_event:
             self.role_at_event = self.staff.role
 
@@ -285,7 +310,9 @@ class FixedStaffSalaryPayment(models.Model):
         "End Date",
         default=django.utils.timezone.now,
     )
-    months_count = models.DecimalField("Months Count", max_digits=5, decimal_places=2, default=1.0)
+    months_count = models.DecimalField(
+        "Months Count", max_digits=5, decimal_places=2, default=1.0
+    )
     monthly_salary = models.DecimalField(
         "Monthly Salary",
         max_digits=10,
@@ -368,16 +395,16 @@ class FixedStaffSalaryPayment(models.Model):
 
         if self.paid_amount is None:
             self.paid_amount = Decimal("0.00")
-            
+
         if self.withdrawal_deduction is None:
             self.withdrawal_deduction = Decimal("0.00")
 
         self.total_amount = self.monthly_salary * Decimal(str(self.months_count or 0))
-        
-        # User defined behavior: final_payable = (salary x months) - withdrawals
-        # and we assume it's fully paid since it's "read-only auto calculation"
-        # but keep remaining_amount logic just in case it's a partial payment manually forced
-        self.remaining_amount = self.total_amount - self.withdrawal_deduction - Decimal(str(self.paid_amount))
+        self.remaining_amount = (
+            self.total_amount
+            - self.withdrawal_deduction
+            - Decimal(str(self.paid_amount))
+        )
 
         if self.remaining_amount < 0:
             self.remaining_amount = Decimal("0.00")

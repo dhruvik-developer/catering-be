@@ -137,7 +137,11 @@ GitHub.sublime-settings
 !.vscode/extensions.json 
 .history
 
-# migrations
-migrations/
-*/migrations/*
-!*/migrations/__init__.py
+# # migrations
+# migrations/
+# */migrations/*
+# !*/migrations/__init__.py
+# !eventbooking/migrations/
+# !eventbooking/migrations/0001_initial.py
+# !eventstaff/migrations/
+# !eventstaff/migrations/0001_initial.py

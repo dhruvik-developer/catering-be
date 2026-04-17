@@ -1,0 +1,516 @@
+{
+  "info": {
+    "_postman_id": "8f2f7a40-7f8b-4f7d-9ef7-3b31c6d6fb8a",
+    "name": "Event Staff API",
+    "description": "Postman collection for Event Staff login, role, and staff add/update/get flows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000/api"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "roleId",
+      "value": "1"
+    },
+    {
+      "key": "waiterTypeId",
+      "value": ""
+    },
+    {
+      "key": "staffId",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/login/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login",
+                ""
+              ]
+            },
+            "description": "Get JWT access token for authenticated staff management requests."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/login/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "login",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"status\": true,\n  \"message\": \"Login successfully\",\n  \"data\": {\n    \"username\": \"admin\",\n    \"first_name\": \"\",\n    \"last_name\": \"\",\n    \"email\": \"admin@example.com\",\n    \"tokens\": {\n      \"refresh\": \"<refresh_token>\",\n      \"access\": \"<access_token>\"\n    }\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Staff Roles",
+      "item": [
+        {
+          "name": "Create Role",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Waiter\",\n  \"description\": \"Service staff\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "roles",
+                ""
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/roles/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "roles",
+                    ""
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"Waiter\",\n  \"description\": \"Service staff\",\n  \"created_at\": \"2026-04-17T15:22:11.675321Z\",\n  \"updated_at\": \"2026-04-17T15:22:11.675321Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Roles",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "roles",
+                ""
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/roles/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "roles",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"Waiter\",\n    \"description\": \"Service staff\",\n    \"created_at\": \"2026-04-17T15:22:11.675321Z\",\n    \"updated_at\": \"2026-04-17T15:22:11.675321Z\"\n  }\n]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Staff",
+      "item": [
+        {
+          "name": "Create Staff",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Raju Waiter\",\n  \"phone\": \"9876543210\",\n  \"role\": {{roleId}},\n  \"staff_type\": \"Contract\",\n  \"fixed_salary\": null,\n  \"waiter_type\": null,\n  \"per_person_rate\": \"250.00\",\n  \"is_active\": true,\n  \"joining_date\": \"2026-04-17\",\n  \"login_username\": \"staff-login\",\n  \"login_password\": \"staff1234\",\n  \"login_email\": \"staff@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/staff/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                ""
+              ]
+            },
+            "description": "Create a staff record and optionally create linked login credentials."
+          },
+          "response": [
+            {
+              "name": "Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/staff/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staff",
+                    ""
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"id\": 1,\n  \"user_account\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"linked_user_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"linked_username\": \"staff-login\",\n  \"login_enabled\": true,\n  \"name\": \"Raju Waiter\",\n  \"phone\": \"9876543210\",\n  \"role\": 1,\n  \"role_name\": \"Waiter\",\n  \"staff_type\": \"Contract\",\n  \"fixed_salary\": null,\n  \"waiter_type\": null,\n  \"waiter_type_name\": null,\n  \"per_person_rate\": \"250.00\",\n  \"is_active\": true,\n  \"joining_date\": \"2026-04-17\",\n  \"created_at\": \"2026-04-17T15:30:14.921447Z\",\n  \"updated_at\": \"2026-04-17T15:30:15.104211Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Staff",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/staff/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                ""
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/staff/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staff",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "[\n  {\n    \"id\": 1,\n    \"user_account\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"linked_user_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"linked_username\": \"staff-login\",\n    \"login_enabled\": true,\n    \"name\": \"Raju Waiter\",\n    \"phone\": \"9876543210\",\n    \"role\": 1,\n    \"role_name\": \"Waiter\",\n    \"staff_type\": \"Contract\",\n    \"fixed_salary\": null,\n    \"waiter_type\": null,\n    \"waiter_type_name\": null,\n    \"per_person_rate\": \"250.00\",\n    \"is_active\": true,\n    \"joining_date\": \"2026-04-17\",\n    \"created_at\": \"2026-04-17T15:30:14.921447Z\",\n    \"updated_at\": \"2026-04-17T15:30:15.104211Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Staff By ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/staff/{{staffId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "{{staffId}}",
+                ""
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/staff/{{staffId}}/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staff",
+                    "{{staffId}}",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"id\": 1,\n  \"user_account\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"linked_user_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"linked_username\": \"staff-login\",\n  \"login_enabled\": true,\n  \"name\": \"Raju Waiter\",\n  \"phone\": \"9876543210\",\n  \"role\": 1,\n  \"role_name\": \"Waiter\",\n  \"staff_type\": \"Contract\",\n  \"fixed_salary\": null,\n  \"waiter_type\": null,\n  \"waiter_type_name\": null,\n  \"per_person_rate\": \"250.00\",\n  \"is_active\": true,\n  \"joining_date\": \"2026-04-17\",\n  \"created_at\": \"2026-04-17T15:30:14.921447Z\",\n  \"updated_at\": \"2026-04-17T15:30:15.104211Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Staff",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Raju Senior Waiter\",\n  \"phone\": \"9876543211\",\n  \"role\": {{roleId}},\n  \"staff_type\": \"Contract\",\n  \"fixed_salary\": null,\n  \"waiter_type\": null,\n  \"per_person_rate\": \"300.00\",\n  \"is_active\": true,\n  \"joining_date\": \"2026-04-17\",\n  \"login_username\": \"staff-login\",\n  \"login_password\": \"staff5678\",\n  \"login_email\": \"staff.updated@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/staff/{{staffId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "{{staffId}}",
+                ""
+              ]
+            },
+            "description": "Full update. Use PATCH if you want partial updates."
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/staff/{{staffId}}/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staff",
+                    "{{staffId}}",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"id\": 1,\n  \"user_account\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"linked_user_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"linked_username\": \"staff-login\",\n  \"login_enabled\": true,\n  \"name\": \"Raju Senior Waiter\",\n  \"phone\": \"9876543211\",\n  \"role\": 1,\n  \"role_name\": \"Waiter\",\n  \"staff_type\": \"Contract\",\n  \"fixed_salary\": null,\n  \"waiter_type\": null,\n  \"waiter_type_name\": null,\n  \"per_person_rate\": \"300.00\",\n  \"is_active\": true,\n  \"joining_date\": \"2026-04-17\",\n  \"created_at\": \"2026-04-17T15:30:14.921447Z\",\n  \"updated_at\": \"2026-04-17T15:35:41.330912Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Waiter List",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/staff/waiters/?role=Waiter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "waiters",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "Waiter"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/staff/waiters/?role=Waiter",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "staff",
+                    "waiters",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"status\": true,\n  \"message\": \"Waiter list fetched successfully\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"Raju Senior Waiter\",\n      \"phone\": \"9876543211\",\n      \"staff_type\": \"Contract\",\n      \"role\": \"Waiter\",\n      \"waiter_type\": null,\n      \"waiter_type_rate\": 0.0,\n      \"per_person_rate\": 300.0,\n      \"fixed_salary\": 0.0,\n      \"is_active\": true,\n      \"linked_username\": \"staff-login\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

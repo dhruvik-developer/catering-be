@@ -6,6 +6,7 @@ from .views import (
     StaffRoleViewSet,
     WaiterTypeViewSet,
     StaffWithdrawalViewSet,
+    StaffRegistrationAPIView,
 )
 
 urlpatterns = [
@@ -131,4 +132,5 @@ urlpatterns = [
         ),
         name="eventstaffassignment-detail",
     ),
+    path("staff/register/", StaffRegistrationAPIView.as_view(), name="staff-register"),
 ]

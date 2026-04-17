@@ -1,8 +1,9 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django.db import transaction
 from .models import Vendor, VendorCategory, IngridientsCategory
-from .serializers import VendorSerializer, CategorySerializer
+from .serializers import VendorSerializer, CategorySerializer, VendorPublicRegistrationSerializer
 from radha.Utils.permissions import IsAdminUserOrReadOnly
 
 
@@ -67,8 +68,8 @@ class CategoryDetailAPIView(generics.GenericAPIView):
 
 class VendorListCreateAPIView(generics.GenericAPIView):
     serializer_class = VendorSerializer
-    queryset = Vendor.objects.all().prefetch_related("vendor_categories__category")
-    permission_classes = [IsAdminUserOrReadOnly]
+    queryset = Vendor.objects.select_related("user_account").prefetch_related("vendor_categories__category")
+    # permission_classes = [IsAdminUserOrReadOnly]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -101,7 +102,7 @@ class VendorListCreateAPIView(generics.GenericAPIView):
 
 class VendorDetailAPIView(generics.GenericAPIView):
     serializer_class = VendorSerializer
-    queryset = Vendor.objects.all().prefetch_related("vendor_categories__category")
+    queryset = Vendor.objects.select_related("user_account").prefetch_related("vendor_categories__category")
     permission_classes = [IsAdminUserOrReadOnly]
 
     def get_object(self, pk):
@@ -134,3 +135,33 @@ class VendorDetailAPIView(generics.GenericAPIView):
 
         vendor.delete()
         return Response({"status": True, "message": "Vendor deleted"})
+
+
+class VendorRegistrationAPIView(generics.GenericAPIView):
+    """
+    Public ViewSet for Vendor Registration
+    """
+
+    serializer_class = VendorPublicRegistrationSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {
+                    "status": True,
+                    "message": "Registration successful. You can log in now.",
+                    "data": {},
+                },
+                status=201,
+            )
+
+        error_messages = []
+        for field, errors in serializer.errors.items():
+            error_messages.extend(errors)
+
+        return Response(
+            {"status": False, "message": error_messages[0], "data": {}}, status=200
+        )

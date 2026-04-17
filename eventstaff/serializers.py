@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from .models import (
@@ -7,11 +8,12 @@ from .models import (
     FixedStaffSalaryPayment,
     Staff,
     StaffRole,
-    WaiterType,
     StaffWithdrawal,
-    add_months,
-    normalize_salary_month,
+    WaiterType,
 )
+
+
+UserModel = get_user_model()
 
 
 class StaffWithdrawalSerializer(serializers.ModelSerializer):
@@ -31,8 +33,12 @@ class StaffWithdrawalSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("is_adjusted", "adjusted_in_payment", "created_at", "updated_at")
-
+        read_only_fields = (
+            "is_adjusted",
+            "adjusted_in_payment",
+            "created_at",
+            "updated_at",
+        )
 
 
 class StaffRoleSerializer(serializers.ModelSerializer):
@@ -50,10 +56,61 @@ class WaiterTypeSerializer(serializers.ModelSerializer):
 class StaffSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source="role.name", read_only=True)
     waiter_type_name = serializers.CharField(source="waiter_type.name", read_only=True)
+    linked_user_id = serializers.UUIDField(source="user_account.id", read_only=True)
+    linked_username = serializers.CharField(
+        source="user_account.username",
+        read_only=True,
+    )
+    login_enabled = serializers.SerializerMethodField()
+    login_username = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
+    login_password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
+    login_email = serializers.EmailField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
 
     class Meta:
         model = Staff
-        fields = "__all__"
+        fields = (
+            "id",
+            "user_account",
+            "linked_user_id",
+            "linked_username",
+            "login_enabled",
+            "login_username",
+            "login_password",
+            "login_email",
+            "name",
+            "phone",
+            "role",
+            "role_name",
+            "staff_type",
+            "fixed_salary",
+            "waiter_type",
+            "waiter_type_name",
+            "per_person_rate",
+            "is_active",
+            "joining_date",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "user_account",
+            "linked_user_id",
+            "linked_username",
+            "login_enabled",
+            "created_at",
+            "updated_at",
+        )
         extra_kwargs = {
             "role": {"help_text": "ID of the StaffRole from /eventstaff/roles/"},
             "waiter_type": {
@@ -65,9 +122,123 @@ class StaffSerializer(serializers.ModelSerializer):
             },
         }
 
+    def get_login_enabled(self, obj):
+        return obj.user_account_id is not None
+
+    def validate(self, attrs):
+        username = attrs.get("login_username")
+        password = attrs.get("login_password")
+        existing_user = getattr(self.instance, "user_account", None)
+
+        if username == "":
+            username = None
+        if password == "":
+            password = None
+
+        if username and not existing_user and not password:
+            raise serializers.ValidationError(
+                {"login_password": "Password is required when creating a staff login."}
+            )
+
+        if password and len(password) < 4:
+            raise serializers.ValidationError(
+                {"login_password": "Password must be at least 4 characters long."}
+            )
+
+        if username:
+            users = UserModel.objects.filter(username=username)
+            if existing_user:
+                users = users.exclude(pk=existing_user.pk)
+            if users.exists():
+                raise serializers.ValidationError(
+                    {"login_username": "This username is already in use."}
+                )
+
+        return attrs
+
+    def _upsert_login_user(self, staff, validated_data):
+        username = validated_data.pop("login_username", None)
+        password = validated_data.pop("login_password", None)
+        email = validated_data.pop("login_email", None)
+
+        username = username or None
+        password = password or None
+        email = email or ""
+
+        linked_user = staff.user_account
+        if not username and not linked_user:
+            return
+
+        if linked_user is None and username:
+            linked_user = UserModel.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=staff.name,
+                is_active=staff.is_active,
+            )
+            staff.user_account = linked_user
+            staff.save(update_fields=["user_account", "updated_at"])
+            return
+
+        if linked_user is not None:
+            if username:
+                linked_user.username = username
+            if "login_email" in self.initial_data:
+                linked_user.email = email
+            linked_user.first_name = staff.name
+            linked_user.is_active = staff.is_active
+            if password:
+                linked_user.set_password(password)
+            linked_user.save()
+
+    def create(self, validated_data):
+        staff = Staff.objects.create(
+            **{
+                key: value
+                for key, value in validated_data.items()
+                if key not in {"login_username", "login_password", "login_email"}
+            }
+        )
+        self._upsert_login_user(staff, validated_data)
+        return staff
+
+    def update(self, instance, validated_data):
+        for key, value in list(validated_data.items()):
+            if key in {"login_username", "login_password", "login_email"}:
+                continue
+            setattr(instance, key, value)
+        instance.save()
+        self._upsert_login_user(instance, validated_data)
+        return instance
+
+
+class StaffPublicRegistrationSerializer(StaffSerializer):
+    login_username = serializers.CharField(write_only=True, required=True)
+    login_password = serializers.CharField(write_only=True, required=True)
+    login_email = serializers.EmailField(
+        write_only=True, required=False, allow_blank=True
+    )
+
+    class Meta(StaffSerializer.Meta):
+        fields = (
+            "id",
+            "login_username",
+            "login_password",
+            "login_email",
+            "name",
+            "phone",
+            "created_at",
+        )
+        read_only_fields = ("id", "created_at")
+
+    def create(self, validated_data):
+        # Public registrations should be able to log in immediately.
+        validated_data["is_active"] = True
+        return super().create(validated_data)
+
 
 class EventStaffAssignmentSerializer(serializers.ModelSerializer):
-    # Optional nested details for GET endpoints
     staff_name = serializers.CharField(source="staff.name", read_only=True)
     staff_type = serializers.CharField(source="staff.staff_type", read_only=True)
     session_name = serializers.CharField(source="session.booking.name", read_only=True)
@@ -88,47 +259,10 @@ class EventStaffAssignmentSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, data):
-        """
-        Custom validation to prevent invalid values.
-        """
         paid_amount = data.get("paid_amount", 0)
         total_days = data.get("total_days", 1)
         per_person_rate = data.get("per_person_rate")
 
-        # Check for negative values
-        if paid_amount and paid_amount < 0:
-            raise serializers.ValidationError(
-                {"paid_amount": "Paid amount cannot be negative."}
-            )
-    # Optional nested details for GET endpoints
-    staff_name = serializers.CharField(source="staff.name", read_only=True)
-    staff_type = serializers.CharField(source="staff.staff_type", read_only=True)
-    session_name = serializers.CharField(source="session.booking.name", read_only=True)
-    session_date = serializers.CharField(source="session.event_date", read_only=True)
-    role_name_at_event = serializers.CharField(
-        source="role_at_event.name", read_only=True
-    )
-
-    class Meta:
-        model = EventStaffAssignment
-        fields = "__all__"
-        read_only_fields = (
-            "total_amount",
-            "remaining_amount",
-            "payment_status",
-            "created_at",
-            "updated_at",
-        )
-
-    def validate(self, data):
-        """
-        Custom validation to prevent invalid values.
-        """
-        paid_amount = data.get("paid_amount", 0)
-        total_days = data.get("total_days", 1)
-        per_person_rate = data.get("per_person_rate")
-
-        # Check for negative values
         if paid_amount and paid_amount < 0:
             raise serializers.ValidationError(
                 {"paid_amount": "Paid amount cannot be negative."}
@@ -157,10 +291,12 @@ class EventStaffAssignmentSerializer(serializers.ModelSerializer):
                     if per_person_rate is not None
                     else staff.per_person_rate
                 )
-                number_of_persons = data.get("number_of_persons", getattr(self.instance, 'number_of_persons', 1))
+                number_of_persons = data.get(
+                    "number_of_persons",
+                    getattr(self.instance, "number_of_persons", 1),
+                )
                 calc_amount = calc_rate * total_days * number_of_persons
 
-            # Only validate if paid_amount is provided, or if instance already has paid_amount
             if paid_amount is not None and paid_amount > calc_amount:
                 raise serializers.ValidationError(
                     {"paid_amount": "Paid amount cannot exceed total amount."}
@@ -226,7 +362,10 @@ class FixedStaffSalaryPaymentSerializer(serializers.ModelSerializer):
         staff = data.get("staff", getattr(self.instance, "staff", None))
         start_date = data.get("start_date", getattr(self.instance, "start_date", None))
         end_date = data.get("end_date", getattr(self.instance, "end_date", None))
-        months_count = data.get("months_count", getattr(self.instance, "months_count", Decimal("1.0")))
+        months_count = data.get(
+            "months_count",
+            getattr(self.instance, "months_count", Decimal("1.0")),
+        )
         paid_amount = data.get(
             "paid_amount",
             getattr(self.instance, "paid_amount", Decimal("0.00")),
@@ -250,7 +389,7 @@ class FixedStaffSalaryPaymentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"start_date": "Start and End dates are required."}
             )
-            
+
         if start_date > end_date:
             raise serializers.ValidationError(
                 {"end_date": "End date cannot be before start date."}
@@ -267,8 +406,6 @@ class FixedStaffSalaryPaymentSerializer(serializers.ModelSerializer):
             )
 
         total_amount = fixed_salary * Decimal(str(months_count))
-        # Remove total_amount check since withdrawal_deduction + paid_amount equals total_amount
-        # We handle this strictly in the view's perform_create.
         if paid_amount > total_amount:
             raise serializers.ValidationError(
                 {"paid_amount": "Final paid amount cannot exceed gross salary amount."}
