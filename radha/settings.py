@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "rest_framework.authtoken",
+    "accesscontrol",
     "category",
     "django_filters",
     "eventbooking",

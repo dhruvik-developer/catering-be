@@ -13,6 +13,7 @@ from .serializers import (
 class ItemViewSet(generics.GenericAPIView):
     serializer_class = ItemSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "items"
 
     def post(self, request):
         if Item.objects.filter(name=request.data.get("name")).exists():
@@ -50,6 +51,7 @@ class ItemViewSet(generics.GenericAPIView):
 class ItemGetViewSet(generics.GenericAPIView):
     serializer_class = ItemDetailSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "items"
 
     def get(self, request, pk=None):
         try:
@@ -106,6 +108,7 @@ class ItemGetViewSet(generics.GenericAPIView):
 
 class RecipeIngredientViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "recipes"
 
     def get(self, request, item_id=None):
         item_id = item_id or request.query_params.get("item_id")
@@ -136,6 +139,7 @@ class RecipeIngredientViewSet(generics.GenericAPIView):
 
 class RecipeIngredientDetailViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "recipes"
 
     def get_object(self, pk):
         return RecipeIngredient.objects.select_related("item", "ingredient__category").get(pk=pk)
@@ -166,6 +170,5 @@ class RecipeIngredientDetailViewSet(generics.GenericAPIView):
             return Response({"status": True, "message": "Recipe deleted"}, status=status.HTTP_204_NO_CONTENT)
         except RecipeIngredient.DoesNotExist:
             return Response({"status": False, "message": "Recipe not found"}, status=status.HTTP_404_NOT_FOUND)
-
 
 

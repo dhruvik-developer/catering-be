@@ -1,6 +1,97 @@
 # permissions.py
 from rest_framework.permissions import IsAuthenticated, BasePermission, SAFE_METHODS
 
+
+HTTP_METHOD_PERMISSION_MAP = {
+    "GET": "view",
+    "HEAD": "view",
+    "OPTIONS": "view",
+    "POST": "create",
+    "PUT": "update",
+    "PATCH": "update",
+    "DELETE": "delete",
+}
+
+
+def normalize_permission_codes(value):
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return [item for item in value if item]
+
+
+def get_required_permission_codes(request, view):
+    permission_action_map = getattr(view, "permission_action_map", {})
+    view_action = getattr(view, "action", None)
+
+    if view_action and view_action in permission_action_map:
+        return normalize_permission_codes(permission_action_map[view_action])
+
+    if request.method in permission_action_map:
+        return normalize_permission_codes(permission_action_map[request.method])
+
+    resource = getattr(view, "permission_resource", None)
+    permission_action = getattr(view, "permission_action", None)
+
+    if not resource:
+        return []
+
+    action = permission_action or HTTP_METHOD_PERMISSION_MAP.get(request.method)
+    if not action:
+        return []
+
+    return [f"{resource}.{action}"]
+
+
+def get_effective_permission_codes(user, refresh=False):
+    if not getattr(user, "is_authenticated", False):
+        return set()
+
+    if user.is_superuser or user.is_staff:
+        return {"*"}
+
+    if not refresh and hasattr(user, "_effective_permission_codes_cache"):
+        return user._effective_permission_codes_cache
+
+    from accesscontrol.models import StaffRolePermissionAssignment, UserPermissionAssignment
+
+    allowed_codes = set()
+    denied_codes = set()
+
+    staff_profile = getattr(user, "staff_profile", None)
+    if staff_profile and staff_profile.role_id:
+        allowed_codes.update(
+            StaffRolePermissionAssignment.objects.filter(
+                role=staff_profile.role,
+                permission__is_active=True,
+            ).values_list("permission__code", flat=True)
+        )
+
+    for assignment in (
+        UserPermissionAssignment.objects.filter(
+            user=user,
+            permission__is_active=True,
+        )
+        .select_related("permission")
+        .all()
+    ):
+        if assignment.is_allowed:
+            allowed_codes.add(assignment.permission.code)
+        else:
+            denied_codes.add(assignment.permission.code)
+
+    effective_codes = allowed_codes - denied_codes
+    user._effective_permission_codes_cache = effective_codes
+    return effective_codes
+
+
+def user_has_permission(user, permission_code):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    effective_codes = get_effective_permission_codes(user)
+    return "*" in effective_codes or permission_code in effective_codes
+
 class IsAdminUserOrReadOnly(IsAuthenticated):
     """
     Custom permission class to allow:
@@ -15,13 +106,18 @@ class IsAdminUserOrReadOnly(IsAuthenticated):
         
         if not is_authenticated:
             return False
-            
-        # Allow GET, HEAD, OPTIONS requests for authenticated users
+
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+
+        required_codes = get_required_permission_codes(request, view)
+        if required_codes:
+            return all(user_has_permission(request.user, code) for code in required_codes)
+
         if request.method in SAFE_METHODS:
             return True
-            
-        # Require admin for all other methods
-        return request.user.is_staff
+
+        return False
 
 
 class IsOwnerOrAdmin(BasePermission):
@@ -36,7 +132,17 @@ class IsOwnerOrAdmin(BasePermission):
     2. Add user field in your model: user = models.ForeignKey(User, on_delete=models.CASCADE)
     """
     def has_permission(self, request, view):
-        return request.user.is_authenticated
+        if not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+
+        required_codes = get_required_permission_codes(request, view)
+        if required_codes:
+            return all(user_has_permission(request.user, code) for code in required_codes)
+
+        return True
 
     def has_object_permission(self, request, view, obj):
         # Allow GET, HEAD, OPTIONS requests for authenticated users
@@ -44,7 +150,13 @@ class IsOwnerOrAdmin(BasePermission):
             return True
             
         # Allow if admin
-        if request.user.is_staff:
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+
+        required_codes = get_required_permission_codes(request, view)
+        if required_codes and all(
+            user_has_permission(request.user, code) for code in required_codes
+        ):
             return True
             
         # Allow if owner

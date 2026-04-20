@@ -12,6 +12,7 @@ class CategoryListCreateAPIView(generics.GenericAPIView):
     serializer_class = CategorySerializer
     queryset = IngridientsCategory.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "vendor_categories"
 
     def get(self, request):
         serializer = self.get_serializer(self.get_queryset(), many=True)
@@ -34,6 +35,7 @@ class CategoryDetailAPIView(generics.GenericAPIView):
     serializer_class = CategorySerializer
     queryset = IngridientsCategory.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "vendor_categories"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()
@@ -69,7 +71,8 @@ class CategoryDetailAPIView(generics.GenericAPIView):
 class VendorListCreateAPIView(generics.GenericAPIView):
     serializer_class = VendorSerializer
     queryset = Vendor.objects.select_related("user_account").prefetch_related("vendor_categories__category")
-    # permission_classes = [IsAdminUserOrReadOnly]
+    permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "vendors"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -104,6 +107,7 @@ class VendorDetailAPIView(generics.GenericAPIView):
     serializer_class = VendorSerializer
     queryset = Vendor.objects.select_related("user_account").prefetch_related("vendor_categories__category")
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "vendors"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()

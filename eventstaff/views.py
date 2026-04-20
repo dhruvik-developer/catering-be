@@ -37,6 +37,7 @@ class StaffRoleViewSet(viewsets.ModelViewSet):
     queryset = StaffRole.objects.all().order_by("name")
     serializer_class = StaffRoleSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "staff_roles"
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -50,6 +51,7 @@ class WaiterTypeViewSet(viewsets.ModelViewSet):
     queryset = WaiterType.objects.all().order_by("name")
     serializer_class = WaiterTypeSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "waiter_types"
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -66,6 +68,11 @@ class StaffViewSet(viewsets.ModelViewSet):
     )
     serializer_class = StaffSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "staff"
+    permission_action_map = {
+        "waiters": "staff.view",
+        "fixed_payment_summary": "staff.view_summary",
+    }
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -253,6 +260,7 @@ class StaffViewSet(viewsets.ModelViewSet):
 class FixedStaffSalaryPaymentViewSet(viewsets.ModelViewSet):
     serializer_class = FixedStaffSalaryPaymentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "fixed_staff_payments"
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -328,6 +336,7 @@ class StaffWithdrawalViewSet(viewsets.ModelViewSet):
     queryset = StaffWithdrawal.objects.all().order_by("-payment_date", "-created_at")
     serializer_class = StaffWithdrawalSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "staff_withdrawals"
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -348,6 +357,10 @@ class StaffWithdrawalViewSet(viewsets.ModelViewSet):
 class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = EventStaffAssignmentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "event_staff_assignments"
+    permission_action_map = {
+        "event_summary": "event_staff_assignments.view_summary",
+    }
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

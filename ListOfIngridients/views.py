@@ -11,6 +11,7 @@ from .serializers import *
 class IngridientsCategoryViewset(generics.GenericAPIView):
     serializer_class = IngridientsCategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ingredient_categories"
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -71,6 +72,7 @@ class IngridientsCategoryViewset(generics.GenericAPIView):
 class IngridientsItemViewset(generics.GenericAPIView):
     serializer_class = IngridientsItemSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ingredient_items"
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

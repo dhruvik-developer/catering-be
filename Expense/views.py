@@ -12,6 +12,7 @@ from radha.Utils.permissions import IsAdminUserOrReadOnly
 class ExpenseView(generics.GenericAPIView):
     serializer_class = ExpenseSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "expense_entries"
 
     def get_queryset(self):
         # Prefetch category and entity for performance improvement
@@ -57,6 +58,7 @@ class ExpenseView(generics.GenericAPIView):
 class ExpenseDetailView(generics.GenericAPIView):
     serializer_class = ExpenseSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "expense_entries"
 
     def get_object(self, pk):
         return get_object_or_404(Expense, pk=pk)
@@ -115,6 +117,7 @@ class ExpenseDetailView(generics.GenericAPIView):
 class CategoryView(generics.GenericAPIView):
     serializer_class = CategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "expense_categories"
 
     def get(self, request):
         queryset = Category.objects.all().order_by("name")
@@ -147,6 +150,7 @@ class CategoryView(generics.GenericAPIView):
 class CategoryDetailView(generics.GenericAPIView):
     serializer_class = CategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "expense_categories"
 
     def get_object(self, pk):
         try:
@@ -239,6 +243,7 @@ class CategoryDetailView(generics.GenericAPIView):
 class ExpenseEntityView(generics.GenericAPIView):
     serializer_class = ExpenseEntitySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "expense_entities"
 
     def get(self, request):
         queryset = ExpenseEntity.objects.all().order_by("name")
@@ -274,6 +279,7 @@ class ExpenseEntityView(generics.GenericAPIView):
 class ExpenseEntityDetailView(generics.GenericAPIView):
     serializer_class = ExpenseEntitySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "expense_entities"
 
     def get_object(self, pk):
         try:
@@ -338,6 +344,7 @@ class ExpenseEntityDetailView(generics.GenericAPIView):
 
 class ExpenseEntitySummaryView(APIView):
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "expense_summaries"
 
     def get(self, request, pk):
         try:

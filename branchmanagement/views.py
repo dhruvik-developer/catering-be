@@ -25,6 +25,7 @@ class InvoiceSetupListCreateAPIView(generics.GenericAPIView):
     serializer_class = BranchFormatSerializer
     queryset = BranchFormat.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "invoice_setup"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -145,6 +146,7 @@ class InvoiceSetupDetailAPIView(generics.GenericAPIView):
     serializer_class = BranchFormatSerializer
     queryset = BranchFormat.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "invoice_setup"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()
@@ -228,6 +230,7 @@ class PartyInformationListCreateAPIView(generics.GenericAPIView):
     serializer_class = PartyInformationSerializer
     queryset = PartyInformation.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "party_information"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -278,6 +281,7 @@ class PartyInformationDetailAPIView(generics.GenericAPIView):
     serializer_class = PartyInformationSerializer
     queryset = PartyInformation.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "party_information"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()
@@ -360,6 +364,8 @@ class PartyInformationDetailAPIView(generics.GenericAPIView):
 class GlobalConfigurationListCreateAPIView(generics.GenericAPIView):
     serializer_class = GlobalConfigurationSerializer
     queryset = GlobalConfiguration.objects.all()
+    permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "global_configuration"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -471,6 +477,8 @@ class GlobalConfigurationListCreateAPIView(generics.GenericAPIView):
 class GlobalConfigurationDetailAPIView(generics.GenericAPIView):
     serializer_class = GlobalConfigurationSerializer
     queryset = GlobalConfiguration.objects.all()
+    permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "global_configuration"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()
@@ -558,6 +566,7 @@ class BranchItemListCreateAPIView(generics.GenericAPIView):
     serializer_class = BranchItemSerializer
     queryset = BranchItem.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "branch_items"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -595,6 +604,7 @@ class BranchItemDetailAPIView(generics.GenericAPIView):
     serializer_class = BranchItemSerializer
     queryset = BranchItem.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "branch_items"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()
@@ -677,6 +687,7 @@ class BranchItemDetailAPIView(generics.GenericAPIView):
 class BranchBillListCreateAPIView(generics.GenericAPIView):
     serializer_class = BranchBillSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "branch_bills"
 
     def get_queryset(self):
         queryset = BranchBill.objects.select_related(
@@ -725,6 +736,7 @@ class BranchBillListCreateAPIView(generics.GenericAPIView):
 class BranchBillDetailAPIView(generics.GenericAPIView):
     serializer_class = BranchBillSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "branch_bills"
 
     def get_queryset(self):
         return BranchBill.objects.select_related(

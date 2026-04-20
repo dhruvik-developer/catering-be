@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "8f2f7a40-7f8b-4f7d-9ef7-3b31c6d6fb8a",
-    "name": "Event Staff API",
-    "description": "Postman collection for Event Staff login, role, and staff add/update/get flows.",
+    "name": "Event Staff + Access Control API",
+    "description": "Postman collection for auth, event staff management, and dynamic access control permission flows.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -25,6 +25,10 @@
     {
       "key": "staffId",
       "value": "1"
+    },
+    {
+      "key": "userId",
+      "value": ""
     }
   ],
   "item": [
@@ -55,7 +59,7 @@
                 ""
               ]
             },
-            "description": "Get JWT access token for authenticated staff management requests."
+            "description": "Get JWT token plus effective permissions for the logged-in user."
           },
           "response": [
             {
@@ -87,9 +91,279 @@
               "code": 200,
               "_postman_previewlanguage": "json",
               "header": [],
-              "body": "{\n  \"status\": true,\n  \"message\": \"Login successfully\",\n  \"data\": {\n    \"username\": \"admin\",\n    \"first_name\": \"\",\n    \"last_name\": \"\",\n    \"email\": \"admin@example.com\",\n    \"tokens\": {\n      \"refresh\": \"<refresh_token>\",\n      \"access\": \"<access_token>\"\n    }\n  }\n}"
+              "body": "{\n  \"status\": true,\n  \"message\": \"Login successfully\",\n  \"data\": {\n    \"username\": \"admin\",\n    \"first_name\": \"\",\n    \"last_name\": \"\",\n    \"email\": \"admin@example.com\",\n    \"user_type\": \"admin\",\n    \"permissions\": [\n      \"*\"\n    ],\n    \"tokens\": {\n      \"refresh\": \"<refresh_token>\",\n      \"access\": \"<access_token>\"\n    }\n  }\n}"
             }
           ]
+        },
+        {
+          "name": "My Permissions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me/permissions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me",
+                "permissions",
+                ""
+              ]
+            },
+            "description": "Fetch effective permissions for the current logged-in user."
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/me/permissions/",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "me",
+                    "permissions",
+                    ""
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"status\": true,\n  \"message\": \"Permissions fetched successfully.\",\n  \"data\": {\n    \"user_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"username\": \"staff-login\",\n    \"permissions\": [\n      \"staff.view\",\n      \"staff.view_summary\"\n    ]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Access Control",
+      "item": [
+        {
+          "name": "List Permission Modules",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/access-control/modules/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "access-control",
+                "modules",
+                ""
+              ]
+            },
+            "description": "Get all available modules and permission codes that can be assigned."
+          },
+          "response": []
+        },
+        {
+          "name": "List Permission Users",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/access-control/users/?user_type=staff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "access-control",
+                "users",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "user_type",
+                  "value": "staff"
+                }
+              ]
+            },
+            "description": "List users available for permission assignment. Change user_type to staff, vendor, admin, or remove it."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Permissions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/access-control/users/{{userId}}/permissions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "access-control",
+                "users",
+                "{{userId}}",
+                "permissions",
+                ""
+              ]
+            },
+            "description": "Get one user's role permissions, direct permissions, and effective permissions."
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Permissions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allowed_permissions\": [\n    \"vendors.view\",\n    \"vendors.update\"\n  ],\n  \"denied_permissions\": [\n    \"vendors.delete\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access-control/users/{{userId}}/permissions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "access-control",
+                "users",
+                "{{userId}}",
+                "permissions",
+                ""
+              ]
+            },
+            "description": "Assign direct allow/deny permissions to a user. Use empty arrays to reset direct assignments."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff Role Permissions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/access-control/staff-roles/{{roleId}}/permissions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "access-control",
+                "staff-roles",
+                "{{roleId}}",
+                "permissions",
+                ""
+              ]
+            },
+            "description": "Get permissions assigned to one staff role."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Staff Role Permissions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission_codes\": [\n    \"staff.view\",\n    \"staff.view_summary\",\n    \"event_staff_assignments.view\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access-control/staff-roles/{{roleId}}/permissions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "access-control",
+                "staff-roles",
+                "{{roleId}}",
+                "permissions",
+                ""
+              ]
+            },
+            "description": "Replace the full permission set for a staff role."
+          },
+          "response": []
         }
       ]
     },

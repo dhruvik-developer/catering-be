@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 class CategoryViewSet(generics.GenericAPIView):
     serializer_class = CategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "categories"
 
     def post(self, request):
         if Category.objects.filter(name=request.data.get("name")).exists():
@@ -63,6 +64,7 @@ class CategoryViewSet(generics.GenericAPIView):
 class CategoryGetViewSet(generics.GenericAPIView):
     serializer_class = CategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "categories"
 
     def put(self, request, pk=None):
         try:
@@ -148,6 +150,7 @@ class CategoryGetViewSet(generics.GenericAPIView):
 class CategoryPositionsChangesViewSet(generics.GenericAPIView):
     serializer_class = CategoryPositionsChangesSerializer
     permission_classes = [IsOwnerOrAdmin]
+    permission_resource = "categories"
 
     def post(self, request, pk):
         try:
@@ -194,4 +197,3 @@ class CategoryPositionsChangesViewSet(generics.GenericAPIView):
 
         except Exception as e:
             return Response({"status": True, "message": str(e)}, status=500)
-

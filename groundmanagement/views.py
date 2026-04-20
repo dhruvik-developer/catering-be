@@ -14,6 +14,7 @@ from .serializers import (
 class GroundCategoryViewSet(generics.GenericAPIView):
     serializer_class = GroundCategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ground_categories"
 
     def get(self, request):
         queryset = (
@@ -49,6 +50,7 @@ class GroundCategoryDetailViewSet(generics.GenericAPIView):
     serializer_class = GroundCategorySerializer
     queryset = GroundCategory.objects.prefetch_related("ground_items").all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ground_categories"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()
@@ -139,6 +141,7 @@ class GroundCategoryDetailViewSet(generics.GenericAPIView):
 class GroundItemViewSet(generics.GenericAPIView):
     serializer_class = GroundItemSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ground_items"
 
     def get(self, request):
         queryset = GroundItem.objects.select_related("category").all().order_by("name")
@@ -174,6 +177,7 @@ class GroundItemDetailViewSet(generics.GenericAPIView):
     serializer_class = GroundItemSerializer
     queryset = GroundItem.objects.select_related("category").all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ground_items"
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()

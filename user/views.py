@@ -5,7 +5,7 @@ from django.contrib.auth import authenticate
 from .serializers import *
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.hashers import check_password
-from radha.Utils.permissions import IsAdminUserOrReadOnly
+from radha.Utils.permissions import IsAdminUserOrReadOnly, user_has_permission, get_effective_permission_codes
 
 # --------------------    LoginViewSet    --------------------
 
@@ -36,6 +36,7 @@ class LoginViewSet(generics.GenericAPIView):
                 "last_name": user.last_name,
                 "email": user.email,
                 "user_type": user_type,
+                "permissions": sorted(get_effective_permission_codes(user)),
                 "tokens": user.tokens,
             }
             return Response(
@@ -59,7 +60,8 @@ class LoginViewSet(generics.GenericAPIView):
 
 class NoteViewSet(generics.GenericAPIView):
     serializer_class = NoteSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "notes"
 
     def post(self, request):
 
@@ -133,6 +135,7 @@ class UserCreateAPIView(generics.GenericAPIView):
     serializer_class = UserCreateSerializer
     queryset = UserModel.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "users"
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -184,7 +187,14 @@ class ChangePasswordAPIView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, id):
-        if not request.user.is_staff and str(request.user.id) != str(id):
+        has_manage_password_permission = user_has_permission(
+            request.user, "users.change_password"
+        )
+        if (
+            not request.user.is_staff
+            and not has_manage_password_permission
+            and str(request.user.id) != str(id)
+        ):
             return Response(
                 {"status": False, "message": "You do not have permission to change this password."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -226,7 +236,8 @@ class ChangePasswordAPIView(generics.GenericAPIView):
 class BusinessProfileAPIView(generics.GenericAPIView):
     serializer_class = BusinessProfileSerializer
     queryset = BusinessProfile.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "business_profiles"
 
     def get(self, request):
         # If you want to get all profiles:
@@ -268,7 +279,8 @@ class BusinessProfileAPIView(generics.GenericAPIView):
 class BusinessProfileDetailAPIView(generics.GenericAPIView):
     serializer_class = BusinessProfileSerializer
     queryset = BusinessProfile.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "business_profiles"
 
     def get_object(self, id):
         try:

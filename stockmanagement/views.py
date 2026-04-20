@@ -27,6 +27,7 @@ def _request_quantity_to_base(raw_quantity, stoke_item, raw_unit=None):
 class StokeCategoryViewSet(generics.GenericAPIView):
     serializer_class = StokeCategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "stock_categories"
 
     def post(self, request):
         if StokeCategory.objects.filter(name=request.data.get("name")).exists():
@@ -74,6 +75,7 @@ class StokeCategoryViewSet(generics.GenericAPIView):
 class EditeStokeCategoryViewSet(generics.GenericAPIView):
     serializer_class = StokeCategorySerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "stock_categories"
 
     def put(self, request, pk=None):
         try:
@@ -160,6 +162,7 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
 class StokeItemViewSet(generics.GenericAPIView):
     serializer_class = StokeItemSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "stock_items"
 
     def get(self, request):
         queryset = StokeItem.objects.all()
@@ -207,6 +210,7 @@ class StokeItemViewSet(generics.GenericAPIView):
 class EditStokeItemViewSet(generics.GenericAPIView):
     serializer_class = StokeItemSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "stock_items"
 
     def get(self, request, pk=None):
         try:
@@ -311,6 +315,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
 
 class AddRemoveStokeItemViewSet(generics.GenericAPIView):
     permission_classes = [IsOwnerOrAdmin]
+    permission_resource = "stock_adjustments"
 
     def post(self, request):
         if not StokeItem.objects.filter(
@@ -426,6 +431,7 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
 
 class AlertstokeItemViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "stock_alerts"
 
     def get(self, request):
         alerts_list = []

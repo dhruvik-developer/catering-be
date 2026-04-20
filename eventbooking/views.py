@@ -233,6 +233,7 @@ def calculate_ingredients_required(session_obj):
 class EventBookingViewSet(generics.GenericAPIView):
     serializer_class = EventBookingSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "event_bookings"
 
     def post(self, request):
         sessions = request.data.get("sessions", [])
@@ -365,6 +366,7 @@ class EventBookingViewSet(generics.GenericAPIView):
 class EventBookingGetViewSet(generics.GenericAPIView):
     serializer_class = EventBookingSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "event_bookings"
 
     def put(self, request, pk=None):
         try:
@@ -527,6 +529,8 @@ class EventBookingGetViewSet(generics.GenericAPIView):
 class StatusChangeEventBookingViewSet(generics.GenericAPIView):
     serializer_class = EventBookingSerializer
     permission_classes = [IsOwnerOrAdmin]
+    permission_resource = "event_bookings"
+    permission_action = "change_status"
 
     def post(self, request, pk=None):
         try:
@@ -559,6 +563,7 @@ class StatusChangeEventBookingViewSet(generics.GenericAPIView):
 class PendingEventBookingViewSet(generics.GenericAPIView):
     serializer_class = EventBookingSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "event_booking_reports"
 
     def get(self, request):
         EventBooking.cancel_expired_pending_bookings()
@@ -584,6 +589,7 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
 
 class GetAllEvent(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "event_booking_reports"
 
     def get(self, request):
         EventBooking.cancel_expired_pending_bookings()
@@ -609,6 +615,7 @@ class GetAllEvent(generics.GenericAPIView):
 
 class SessionIngredientsViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "session_ingredients"
 
     def get(self, request):
         session_id = _session_id_from_query(request)
@@ -658,6 +665,7 @@ class EventItemConfigViewSet(generics.ListCreateAPIView):
     queryset = EventItemConfig.objects.all()
     serializer_class = EventItemConfigSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "event_item_configs"
     
     def get_queryset(self):
         qs = super().get_queryset()
@@ -693,12 +701,14 @@ class EventItemConfigDetailViewSet(generics.RetrieveUpdateDestroyAPIView):
     queryset = EventItemConfig.objects.all()
     serializer_class = EventItemConfigSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "event_item_configs"
 
 
 class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
     queryset = IngredientVendorAssignment.objects.all()
     serializer_class = IngredientVendorAssignmentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ingredient_vendor_assignments"
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -744,6 +754,7 @@ class IngredientVendorAssignmentDetailViewSet(generics.RetrieveUpdateDestroyAPIV
     queryset = IngredientVendorAssignment.objects.all()
     serializer_class = IngredientVendorAssignmentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "ingredient_vendor_assignments"
 
     def perform_update(self, serializer):
         serializer.save(source_type="manual")

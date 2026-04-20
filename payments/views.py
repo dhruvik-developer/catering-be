@@ -14,6 +14,7 @@ from datetime import date
 class PaymentViewSet(generics.GenericAPIView):
     serializer_class = PaymentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "payments"
 
     def get(self, request):
         payments = Payment.objects.all().order_by("-payment_date")
@@ -157,6 +158,7 @@ class PaymentViewSet(generics.GenericAPIView):
 class EditPaymentViewSet(generics.GenericAPIView):
     serializer_class = PaymentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "payments"
 
     def get(self, request, pk=None):
         try:
@@ -301,6 +303,7 @@ class EditPaymentViewSet(generics.GenericAPIView):
 
 class AllTransactionViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
+    permission_resource = "transactions"
 
     def get(self, request):
 
