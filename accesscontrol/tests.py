@@ -74,7 +74,7 @@ class AccessControlTests(APITestCase):
         )
         Staff.objects.create(name="Staff One", role=role, user_account=staff_user, is_active=True)
 
-        staff_view_permission = AccessPermission.objects.get(code="staff.view")
+        staff_view_permission = AccessPermission.objects.get(code="staff_roles.view")
         StaffRolePermissionAssignment.objects.create(
             role=role,
             permission=staff_view_permission,
@@ -86,7 +86,7 @@ class AccessControlTests(APITestCase):
             format="json",
         )
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
-        self.assertIn("staff.view", login_response.data["data"]["permissions"])
+        self.assertIn("staff_roles.view", login_response.data["data"]["permissions"])
 
         staff_token = login_response.data["data"]["tokens"]["access"]
         staff_headers = {"HTTP_AUTHORIZATION": f"Bearer {staff_token}"}
@@ -98,7 +98,7 @@ class AccessControlTests(APITestCase):
             f"/api/access-control/users/{staff_user.id}/permissions/",
             {
                 "allowed_permissions": [],
-                "denied_permissions": ["staff.view"],
+                "denied_permissions": ["staff_roles.view"],
             },
             format="json",
             **self.admin_headers,

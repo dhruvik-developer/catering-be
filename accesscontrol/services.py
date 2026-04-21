@@ -3,7 +3,13 @@ from accesscontrol.models import AccessPermission, PermissionModule
 
 
 def sync_permission_catalog():
+    active_module_codes = set()
+    active_permission_codes = set()
+
     for row in iter_catalog_permissions():
+        active_module_codes.add(row["module_code"])
+        active_permission_codes.add(row["permission_code"])
+
         module, _ = PermissionModule.objects.update_or_create(
             code=row["module_code"],
             defaults={
@@ -24,3 +30,10 @@ def sync_permission_catalog():
                 "is_active": True,
             },
         )
+
+    # Deactivate permissions/modules removed from catalog so they disappear
+    # from active module listings without deleting historical assignments.
+    AccessPermission.objects.exclude(code__in=active_permission_codes).update(
+        is_active=False
+    )
+    PermissionModule.objects.exclude(code__in=active_module_codes).update(is_active=False)

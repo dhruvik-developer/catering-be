@@ -286,18 +286,6 @@ PERMISSION_CATALOG = [
         ],
     },
     {
-        "code": "staff",
-        "name": "Staff",
-        "description": "Manage staff records.",
-        "permissions": [
-            ("view", "View staff"),
-            ("create", "Create staff"),
-            ("update", "Update staff"),
-            ("delete", "Delete staff"),
-            ("view_summary", "View staff summaries"),
-        ],
-    },
-    {
         "code": "fixed_staff_payments",
         "name": "Fixed Staff Payments",
         "description": "Manage fixed staff salary payments.",
