@@ -2,10 +2,10 @@ from decimal import Decimal
 
 from django.db.models import Count, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, viewsets, generics
+from rest_framework import filters, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 
 from eventbooking.models import EventBooking
 from radha.Utils.permissions import IsAdminUserOrReadOnly
@@ -23,7 +23,6 @@ from .serializers import (
     FixedStaffSalaryPaymentSerializer,
     StaffRoleSerializer,
     StaffSerializer,
-    StaffPublicRegistrationSerializer,
     StaffWithdrawalSerializer,
     WaiterTypeSerializer,
 )
@@ -81,6 +80,11 @@ class StaffViewSet(viewsets.ModelViewSet):
     filterset_fields = ["role", "staff_type", "is_active"]
     search_fields = ["name", "phone", "user_account__username"]
     ordering_fields = ["name", "created_at", "per_person_rate"]
+
+    def create(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            raise PermissionDenied("Only admin can create this resource.")
+        return super().create(request, *args, **kwargs)
 
     @action(detail=False, methods=["get"], url_path="waiters")
     def waiters(self, request):
@@ -441,34 +445,4 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
                 "message": "Event staff summary fetched successfully",
                 "data": data,
             }
-        )
-
-
-class StaffRegistrationAPIView(generics.GenericAPIView):
-    """
-    Public ViewSet for Staff Registration
-    """
-
-    serializer_class = StaffPublicRegistrationSerializer
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {
-                    "status": True,
-                    "message": "Registration successful. You can log in now.",
-                    "data": {},
-                },
-                status=201,
-            )
-
-        error_messages = []
-        for field, errors in serializer.errors.items():
-            error_messages.extend(errors)
-
-        return Response(
-            {"status": False, "message": error_messages[0], "data": {}}, status=200
         )

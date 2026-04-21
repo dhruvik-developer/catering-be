@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from .models import Vendor, VendorCategory
 from ListOfIngridients.models import IngridientsCategory
 
@@ -139,6 +140,10 @@ class VendorSerializer(serializers.ModelSerializer):
             linked_user.save()
 
     def create(self, validated_data):
+        request = self.context.get("request")
+        if request is None or not request.user.is_superuser:
+            raise PermissionDenied("Only admin allowed.")
+
         categories_data = validated_data.pop("vendor_categories", [])
         vendor = Vendor.objects.create(
             **{
@@ -178,28 +183,3 @@ class VendorSerializer(serializers.ModelSerializer):
 
         self._upsert_login_user(instance, validated_data)
         return instance
-
-
-class VendorPublicRegistrationSerializer(VendorSerializer):
-    login_username = serializers.CharField(write_only=True, required=True)
-    login_password = serializers.CharField(write_only=True, required=True)
-    login_email = serializers.EmailField(
-        write_only=True, required=False, allow_blank=True
-    )
-
-    class Meta(VendorSerializer.Meta):
-        fields = [
-            "id",
-            "login_username",
-            "login_password",
-            "login_email",
-            "name",
-            "mobile_no",
-            "address",
-        ]
-        read_only_fields = ["id"]
-
-    def create(self, validated_data):
-        # Public registrations should be able to log in immediately.
-        validated_data["is_active"] = True
-        return super().create(validated_data)

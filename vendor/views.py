@@ -1,9 +1,9 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from .models import Vendor, VendorCategory, IngridientsCategory
-from .serializers import VendorSerializer, CategorySerializer, VendorPublicRegistrationSerializer
+from .serializers import VendorSerializer, CategorySerializer
 from radha.Utils.permissions import IsAdminUserOrReadOnly
 
 
@@ -93,6 +93,9 @@ class VendorListCreateAPIView(generics.GenericAPIView):
 
     @transaction.atomic
     def post(self, request):
+        if not request.user.is_superuser:
+            raise PermissionDenied("Only admin can create this resource.")
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
@@ -139,33 +142,3 @@ class VendorDetailAPIView(generics.GenericAPIView):
 
         vendor.delete()
         return Response({"status": True, "message": "Vendor deleted"})
-
-
-class VendorRegistrationAPIView(generics.GenericAPIView):
-    """
-    Public ViewSet for Vendor Registration
-    """
-
-    serializer_class = VendorPublicRegistrationSerializer
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {
-                    "status": True,
-                    "message": "Registration successful. You can log in now.",
-                    "data": {},
-                },
-                status=201,
-            )
-
-        error_messages = []
-        for field, errors in serializer.errors.items():
-            error_messages.extend(errors)
-
-        return Response(
-            {"status": False, "message": error_messages[0], "data": {}}, status=200
-        )

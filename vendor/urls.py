@@ -4,7 +4,6 @@ from .views import (
     CategoryDetailAPIView,
     VendorListCreateAPIView,
     VendorDetailAPIView,
-    VendorRegistrationAPIView,
 )
 
 
@@ -13,5 +12,4 @@ urlpatterns = [
     path("categories/<int:pk>/", CategoryDetailAPIView.as_view()),
     path("vendors/", VendorListCreateAPIView.as_view()),
     path("vendors/<int:pk>/", VendorDetailAPIView.as_view()),
-    path("vendors/register/", VendorRegistrationAPIView.as_view(), name="vendor-register"),
 ]

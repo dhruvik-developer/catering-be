@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from .models import *
 
 
@@ -22,6 +23,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
         fields = ["id", "username", "email", "password"]
 
     def create(self, validated_data):
+        request = self.context.get("request")
+        if request is None or not request.user.is_superuser:
+            raise PermissionDenied("Only admin allowed.")
+
         user = UserModel.objects.create_user(
             username=validated_data["username"],
             email=validated_data.get("email", ""),

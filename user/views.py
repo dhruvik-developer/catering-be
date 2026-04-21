@@ -1,6 +1,7 @@
 from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
 from .serializers import *
 from django.shortcuts import get_object_or_404
@@ -138,6 +139,9 @@ class UserCreateAPIView(generics.GenericAPIView):
     permission_resource = "users"
 
     def post(self, request):
+        if not request.user.is_superuser:
+            raise PermissionDenied("Only admin can create this resource.")
+
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
