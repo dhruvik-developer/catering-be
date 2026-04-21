@@ -48,7 +48,7 @@ def get_effective_permission_codes(user, refresh=False):
     if not getattr(user, "is_authenticated", False):
         return set()
 
-    if user.is_superuser or user.is_staff:
+    if user.is_superuser:
         return {"*"}
 
     if not refresh and hasattr(user, "_effective_permission_codes_cache"):
