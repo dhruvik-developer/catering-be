@@ -4,15 +4,13 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
-from accesscontrol.models import AccessPermission, PermissionModule, StaffRolePermissionAssignment
+from accesscontrol.models import AccessPermission, PermissionModule
 from accesscontrol.serializers import (
     PermissionModuleSerializer,
     PermissionSubjectSerializer,
-    StaffRolePermissionWriteSerializer,
     UserPermissionAssignmentWriteSerializer,
     build_user_permission_payload,
 )
-from eventstaff.models import StaffRole
 from radha.Utils.permissions import get_effective_permission_codes
 
 
@@ -124,58 +122,6 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
                 "status": True,
                 "message": "User permissions updated successfully.",
                 "data": build_user_permission_payload(user),
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
-class StaffRolePermissionAssignmentAPIView(generics.GenericAPIView):
-    permission_classes = [IsAdminUser]
-    serializer_class = StaffRolePermissionWriteSerializer
-
-    def get_role(self, role_id):
-        return get_object_or_404(StaffRole, id=role_id)
-
-    def get(self, request, role_id):
-        role = self.get_role(role_id)
-        permission_codes = list(
-            StaffRolePermissionAssignment.objects.filter(role=role)
-            .select_related("permission")
-            .values_list("permission__code", flat=True)
-        )
-        return Response(
-            {
-                "status": True,
-                "message": "Role permissions fetched successfully.",
-                "data": {
-                    "role_id": role.id,
-                    "role_name": role.name,
-                    "permission_codes": sorted(permission_codes),
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    def put(self, request, role_id):
-        role = self.get_role(role_id)
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        permission_codes = serializer.validated_data.get("permission_codes", [])
-
-        StaffRolePermissionAssignment.objects.filter(role=role).delete()
-        permissions = AccessPermission.objects.filter(code__in=permission_codes)
-        for permission in permissions:
-            StaffRolePermissionAssignment.objects.create(role=role, permission=permission)
-
-        return Response(
-            {
-                "status": True,
-                "message": "Role permissions updated successfully.",
-                "data": {
-                    "role_id": role.id,
-                    "role_name": role.name,
-                    "permission_codes": sorted(permission_codes),
-                },
             },
             status=status.HTTP_200_OK,
         )

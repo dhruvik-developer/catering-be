@@ -2,8 +2,8 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accesscontrol.models import AccessPermission, StaffRolePermissionAssignment
-from eventstaff.models import Staff, StaffRole
+from accesscontrol.models import AccessPermission
+from eventstaff.models import Staff
 from vendor.models import Vendor
 
 
@@ -66,19 +66,23 @@ class AccessControlTests(APITestCase):
         )
         self.assertEqual(create_response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_staff_role_permission_and_user_deny_override(self):
-        role = StaffRole.objects.create(name="Supervisor")
+    def test_staff_direct_permission_and_user_deny_override(self):
         staff_user = UserModel.objects.create_user(
             username="staff-user",
             password="staff1234",
         )
-        Staff.objects.create(name="Staff One", role=role, user_account=staff_user, is_active=True)
+        Staff.objects.create(name="Staff One", user_account=staff_user, is_active=True)
 
-        staff_view_permission = AccessPermission.objects.get(code="staff_roles.view")
-        StaffRolePermissionAssignment.objects.create(
-            role=role,
-            permission=staff_view_permission,
+        assign_response = self.client.put(
+            f"/api/access-control/users/{staff_user.id}/permissions/",
+            {
+                "allowed_permissions": ["staff.view"],
+                "denied_permissions": [],
+            },
+            format="json",
+            **self.admin_headers,
         )
+        self.assertEqual(assign_response.status_code, status.HTTP_200_OK)
 
         login_response = self.client.post(
             "/api/login/",
@@ -86,7 +90,7 @@ class AccessControlTests(APITestCase):
             format="json",
         )
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
-        self.assertIn("staff_roles.view", login_response.data["data"]["permissions"])
+        self.assertIn("staff.view", login_response.data["data"]["permissions"])
 
         staff_token = login_response.data["data"]["tokens"]["access"]
         staff_headers = {"HTTP_AUTHORIZATION": f"Bearer {staff_token}"}
@@ -98,7 +102,7 @@ class AccessControlTests(APITestCase):
             f"/api/access-control/users/{staff_user.id}/permissions/",
             {
                 "allowed_permissions": [],
-                "denied_permissions": ["staff_roles.view"],
+                "denied_permissions": ["staff.view"],
             },
             format="json",
             **self.admin_headers,

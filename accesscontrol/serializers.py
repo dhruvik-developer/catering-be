@@ -4,7 +4,6 @@ from rest_framework import serializers
 from accesscontrol.models import (
     AccessPermission,
     PermissionModule,
-    StaffRolePermissionAssignment,
     UserPermissionAssignment,
 )
 from radha.Utils.permissions import get_effective_permission_codes
@@ -135,45 +134,13 @@ class UserPermissionAssignmentWriteSerializer(serializers.Serializer):
         return attrs
 
 
-class StaffRolePermissionWriteSerializer(serializers.Serializer):
-    permission_codes = serializers.ListField(
-        child=serializers.CharField(),
-        required=False,
-        allow_empty=True,
-    )
-
-    def validate_permission_codes(self, value):
-        codes = set(value)
-        unknown_codes = codes - set(AccessPermission.objects.values_list("code", flat=True))
-        if unknown_codes:
-            raise serializers.ValidationError(
-                f"Unknown permission codes: {', '.join(sorted(unknown_codes))}"
-            )
-        return list(codes)
-
-
 class UserPermissionAssignmentDetailSerializer(serializers.Serializer):
     user = PermissionSubjectSerializer(read_only=True)
-    role_permissions = serializers.ListField(child=serializers.CharField(), read_only=True)
     direct_permissions = serializers.ListField(child=serializers.DictField(), read_only=True)
     effective_permissions = serializers.ListField(child=serializers.CharField(), read_only=True)
 
 
-class StaffRolePermissionDetailSerializer(serializers.Serializer):
-    role_id = serializers.IntegerField(read_only=True)
-    role_name = serializers.CharField(read_only=True)
-    permission_codes = serializers.ListField(child=serializers.CharField(), read_only=True)
-
-
 def build_user_permission_payload(user):
-    role_permissions = []
-    if hasattr(user, "staff_profile") and user.staff_profile.role_id:
-        role_permissions = list(
-            StaffRolePermissionAssignment.objects.filter(role=user.staff_profile.role)
-            .select_related("permission")
-            .values_list("permission__code", flat=True)
-        )
-
     direct_permissions = list(
         UserPermissionAssignment.objects.filter(user=user)
         .select_related("permission")
@@ -182,7 +149,6 @@ def build_user_permission_payload(user):
 
     return {
         "user": PermissionSubjectSerializer(user).data,
-        "role_permissions": sorted(role_permissions),
         "direct_permissions": [
             {"code": row["permission__code"], "is_allowed": row["is_allowed"]}
             for row in direct_permissions

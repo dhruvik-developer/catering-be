@@ -29,23 +29,23 @@ class StaffAccessTests(TestCase):
         )
 
         module, _ = PermissionModule.objects.get_or_create(
-            code="staff_roles",
-            defaults={"name": "Staff Roles"},
+            code="staff",
+            defaults={"name": "Staff"},
         )
         create_permission, _ = AccessPermission.objects.get_or_create(
             module=module,
-            code="staff_roles.create",
+            code="staff.create",
             defaults={
                 "action": "create",
-                "name": "Create Staff Roles",
+                "name": "Create Staff",
             },
         )
         view_permission, _ = AccessPermission.objects.get_or_create(
             module=module,
-            code="staff_roles.view",
+            code="staff.view",
             defaults={
                 "action": "view",
-                "name": "View Staff Roles",
+                "name": "View Staff",
             },
         )
 

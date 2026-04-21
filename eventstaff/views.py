@@ -67,10 +67,10 @@ class StaffViewSet(viewsets.ModelViewSet):
     )
     serializer_class = StaffSerializer
     permission_classes = [IsAdminUserOrReadOnly]
-    permission_resource = "staff_roles"
+    permission_resource = "staff"
     permission_action_map = {
-        "waiters": "staff_roles.view",
-        "fixed_payment_summary": "staff_roles.view",
+        "waiters": "staff.view",
+        "fixed_payment_summary": "staff.view_summary",
     }
     filter_backends = [
         DjangoFilterBackend,

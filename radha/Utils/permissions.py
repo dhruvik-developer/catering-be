@@ -54,19 +54,10 @@ def get_effective_permission_codes(user, refresh=False):
     if not refresh and hasattr(user, "_effective_permission_codes_cache"):
         return user._effective_permission_codes_cache
 
-    from accesscontrol.models import StaffRolePermissionAssignment, UserPermissionAssignment
+    from accesscontrol.models import UserPermissionAssignment
 
     allowed_codes = set()
     denied_codes = set()
-
-    staff_profile = getattr(user, "staff_profile", None)
-    if staff_profile and staff_profile.role_id:
-        allowed_codes.update(
-            StaffRolePermissionAssignment.objects.filter(
-                role=staff_profile.role,
-                permission__is_active=True,
-            ).values_list("permission__code", flat=True)
-        )
 
     for assignment in (
         UserPermissionAssignment.objects.filter(
