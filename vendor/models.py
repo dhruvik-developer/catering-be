@@ -18,6 +18,14 @@ class Vendor(models.Model):
     mobile_no = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="vendors_created",
+        verbose_name="Created By",
+    )
 
     def __str__(self):
         login_label = self.user_account.username if self.user_account else "No Login"

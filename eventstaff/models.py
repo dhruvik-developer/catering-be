@@ -110,6 +110,14 @@ class Staff(models.Model):
         blank=True,
         null=True,
     )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="staff_created",
+        verbose_name="Created By",
+    )
 
     created_at = models.DateTimeField(default=django.utils.timezone.now)
     updated_at = models.DateTimeField(auto_now=True)

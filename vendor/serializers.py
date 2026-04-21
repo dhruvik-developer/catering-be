@@ -44,6 +44,9 @@ class VendorSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True,
     )
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
 
     class Meta:
         model = Vendor
@@ -61,12 +64,16 @@ class VendorSerializer(serializers.ModelSerializer):
             "address",
             "is_active",
             "vendor_categories",
+            "created_by",
+            "created_by_username",
         ]
         read_only_fields = [
             "user_account",
             "linked_user_id",
             "linked_username",
             "login_enabled",
+            "created_by",
+            "created_by_username",
         ]
 
     def get_login_enabled(self, obj):
@@ -146,6 +153,7 @@ class VendorSerializer(serializers.ModelSerializer):
 
         categories_data = validated_data.pop("vendor_categories", [])
         vendor = Vendor.objects.create(
+            created_by=request.user,
             **{
                 key: value
                 for key, value in validated_data.items()

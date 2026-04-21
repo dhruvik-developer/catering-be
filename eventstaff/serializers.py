@@ -78,6 +78,9 @@ class StaffSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True,
     )
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
 
     class Meta:
         model = Staff
@@ -101,6 +104,8 @@ class StaffSerializer(serializers.ModelSerializer):
             "per_person_rate",
             "is_active",
             "joining_date",
+            "created_by",
+            "created_by_username",
             "created_at",
             "updated_at",
         )
@@ -109,6 +114,8 @@ class StaffSerializer(serializers.ModelSerializer):
             "linked_user_id",
             "linked_username",
             "login_enabled",
+            "created_by",
+            "created_by_username",
             "created_at",
             "updated_at",
         )
@@ -199,6 +206,7 @@ class StaffSerializer(serializers.ModelSerializer):
             raise PermissionDenied("Only admin allowed.")
 
         staff = Staff.objects.create(
+            created_by=request.user,
             **{
                 key: value
                 for key, value in validated_data.items()
