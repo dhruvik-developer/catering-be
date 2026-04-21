@@ -32,5 +32,5 @@ urlpatterns = [
     path("api/", include("vendor.urls")),
     path("api/", include("eventstaff.urls")),
     path("api/", include("groundmanagement.urls")),
-    path("api/", include("branchmanagement.urls")),
+    # path("api/", include("branchmanagement.urls")),
 ]

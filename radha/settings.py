@@ -88,7 +88,7 @@ INSTALLED_APPS = [
     "vendor",
     "eventstaff",
     "groundmanagement",
-    "branchmanagement",
+    # "branchmanagement",
 ]
 
 
