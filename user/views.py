@@ -1,5 +1,6 @@
 from rest_framework.response import Response
 from rest_framework import status, generics
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
@@ -242,6 +243,7 @@ class BusinessProfileAPIView(generics.GenericAPIView):
     queryset = BusinessProfile.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "business_profiles"
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
         # If you want to get all profiles:
@@ -285,6 +287,7 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
     queryset = BusinessProfile.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "business_profiles"
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_object(self, id):
         try:

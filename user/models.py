@@ -32,6 +32,8 @@ class Note(models.Model):
 class BusinessProfile(models.Model):
     caters_name = models.CharField("Caters Name", max_length=255)
     phone_number = models.CharField("Phone Number", max_length=20)
+    logo = models.ImageField("Logo", upload_to="business_profile/logos/", blank=True, null=True)
+    color_code = models.CharField("Color Code", max_length=20, blank=True, null=True)
     whatsapp_number = models.CharField(
         "WhatsApp Number", max_length=20, blank=True, null=True
     )

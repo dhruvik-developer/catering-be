@@ -34,6 +34,10 @@ def env_list(name, default=""):
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def get_env(name, default=None):
+    return os.getenv(name, default)
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
@@ -194,6 +198,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = "static/"
+
+# Media files (for handling file uploads)
+if get_env("SERVER", "LOCAL") == "PROD":
+    MEDIA_ROOT = "/var/www/radha/media"
+    MEDIA_URL = "/media/"
+else:
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

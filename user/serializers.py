@@ -62,6 +62,8 @@ class BusinessProfileSerializer(serializers.ModelSerializer):
             "id",
             "caters_name",
             "phone_number",
+            "logo",
+            "color_code",
             "whatsapp_number",
             "fssai_number",
             "godown_address",
