@@ -245,6 +245,11 @@ class BusinessProfileAPIView(generics.GenericAPIView):
     permission_resource = "business_profiles"
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [AllowAny()]
+        return [permission() for permission in self.permission_classes]
+
     def get(self, request):
         # If you want to get all profiles:
         queryset = self.get_queryset()
@@ -288,6 +293,11 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "business_profiles"
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [AllowAny()]
+        return [permission() for permission in self.permission_classes]
 
     def get_object(self, id):
         try:
