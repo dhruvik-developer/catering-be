@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
-from .models import *
+from .models import UserModel, Note, BusinessProfile
+
+MIN_PASSWORD_LENGTH = 8
 
 
 class LoginSerializer(serializers.Serializer):
@@ -35,10 +37,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return user
 
     def validate_password(self, value):
-        # Add password strength validation if needed
-        if len(value) < 4:
+        if len(value) < MIN_PASSWORD_LENGTH:
             raise serializers.ValidationError(
-                "Password must be at least 4 characters long."
+                f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
             )
         return value
 
@@ -47,10 +48,9 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True, required=True)
 
     def validate_new_password(self, value):
-        # Add password strength validation if needed
-        if len(value) < 4:
+        if len(value) < MIN_PASSWORD_LENGTH:
             raise serializers.ValidationError(
-                "Password must be at least 4 characters long."
+                f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
             )
         return value
 

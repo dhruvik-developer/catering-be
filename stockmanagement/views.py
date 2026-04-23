@@ -339,7 +339,23 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
         quantity_in_base = _request_quantity_to_base(
             quantity, stoke_item, request.data.get("type")
         )
-        result = to_decimal(stoke_item.quantity) - quantity_in_base
+        current_quantity = to_decimal(stoke_item.quantity)
+        result = current_quantity - quantity_in_base
+        if result < 0:
+            readable_current, readable_current_type = to_readable_quantity_unit(
+                stoke_item.quantity, stoke_item.type
+            )
+            return Response(
+                {
+                    "status": False,
+                    "message": (
+                        f"Insufficient stock: only {to_number(readable_current)} "
+                        f"{readable_current_type} available."
+                    ),
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if total_price:
             price = total_price
         else:
@@ -393,17 +409,19 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
             stoke_item.total_price = str(
                 to_decimal(stoke_item.total_price) + to_decimal(total_price)
             )
-            stoke_item.nte_price = str(
-                to_decimal(stoke_item.total_price) / to_decimal(stoke_item.quantity)
-            )
         else:
             total_price = str(quantity_in_base * to_decimal(stoke_item.nte_price))
             stoke_item.total_price = str(
                 to_decimal(stoke_item.total_price) + to_decimal(total_price)
             )
+        # Weighted average unit price. Guarded against zero quantity (e.g. an
+        # add of zero that leaves stock at zero) so we don't crash on division.
+        if result > 0:
             stoke_item.nte_price = str(
-                to_decimal(stoke_item.total_price) / to_decimal(stoke_item.quantity)
+                to_decimal(stoke_item.total_price) / result
             )
+        else:
+            stoke_item.nte_price = "0"
         stoke_item.save()
 
         readable_quantity, readable_type = to_readable_quantity_unit(

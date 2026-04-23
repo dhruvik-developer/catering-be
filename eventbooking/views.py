@@ -3,6 +3,8 @@ from rest_framework import status, generics
 from radha.Utils.permissions import *
 from .serializers import *
 from collections import defaultdict
+from decimal import Decimal, InvalidOperation
+import logging
 from radha.Utils.unit_normalizer import (
     normalize_quantity_unit,
     to_number,
@@ -10,6 +12,22 @@ from radha.Utils.unit_normalizer import (
 )
 from item.models import RecipeIngredient
 import difflib
+
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_ESTIMATED_PERSONS = 100
+
+
+def _safe_amount(value):
+    """Parse a money-shaped value from loose JSON (string, int, float, None).
+    Returns 0 for blank / non-numeric inputs instead of raising ValueError."""
+    if value is None or value == "":
+        return 0
+    try:
+        return int(Decimal(str(value)))
+    except (InvalidOperation, ValueError, TypeError):
+        return 0
 
 
 def _session_id_from_query(request):
@@ -24,7 +42,13 @@ def calculate_ingredients_required(session_obj):
     try:
         persons = int(session_obj.estimated_persons)
     except (ValueError, TypeError):
-        persons = 100
+        logger.warning(
+            "Session %s has non-numeric estimated_persons=%r; falling back to %d",
+            getattr(session_obj, "id", "?"),
+            session_obj.estimated_persons,
+            DEFAULT_ESTIMATED_PERSONS,
+        )
+        persons = DEFAULT_ESTIMATED_PERSONS
 
     selected_items = session_obj.selected_items or {}
     dish_names = []
@@ -44,7 +68,9 @@ def calculate_ingredients_required(session_obj):
             elif isinstance(item, str):
                 dish_names.append(item.strip())
 
-    total_ingredients = defaultdict(lambda: {"value": 0, "unit": "", "used_in": set()})
+    # Accumulate in Decimal so scale factors like 73/100 don't drift across
+    # many ingredients. Converted back to float at the response boundary.
+    total_ingredients = defaultdict(lambda: {"value": Decimal("0"), "unit": "", "used_in": set()})
 
     from .models import EventItemConfig
 
@@ -70,9 +96,9 @@ def calculate_ingredients_required(session_obj):
             qty = None
             unit = config.unit or ""
             if config.calculated_from_persons and config.quantity:
-                qty = float(config.quantity) * persons
+                qty = float(Decimal(str(config.quantity)) * persons)
             elif config.quantity:
-                qty = float(config.quantity)
+                qty = float(Decimal(str(config.quantity)))
                 
             vendor_info = None
             if config.vendor:
@@ -110,10 +136,10 @@ def calculate_ingredients_required(session_obj):
         qty = float(ri.quantity or 0)
         unit = ri.unit or ""
         base_quantity, base_unit = normalize_quantity_unit(qty, unit)
-        person_count = ri.person_count if ri.person_count and ri.person_count > 0 else 100
-        scale_factor = persons / person_count
+        person_count = ri.person_count if ri.person_count and ri.person_count > 0 else DEFAULT_ESTIMATED_PERSONS
+        scale_factor = Decimal(persons) / Decimal(person_count)
 
-        total_ingredients[ingredient_name]["value"] += float(base_quantity) * scale_factor
+        total_ingredients[ingredient_name]["value"] += Decimal(str(base_quantity)) * scale_factor
         if base_unit:
             total_ingredients[ingredient_name]["unit"] = base_unit
         total_ingredients[ingredient_name]["used_in"].add(ri.item.name.strip())
@@ -154,7 +180,7 @@ def calculate_ingredients_required(session_obj):
     final_ingredients = {}
     for ingredient, data in total_ingredients.items():
         converted_value, converted_unit = to_readable_quantity_unit(
-            data["value"], data["unit"]
+            float(data["value"]), data["unit"]
         )
         cat = category_map.get(ingredient.strip().lower(), "")
         if not cat:
@@ -249,21 +275,15 @@ class EventBookingViewSet(generics.GenericAPIView):
             session["selected_items"] = converted_payload
 
             # Calculate extra_service_amount for the session
-            amount = 0
             extra_services = session.get("extra_service", [])
-            for extra_service in extra_services:
-                if extra_service.get("amount"):
-                    amount = amount + int(extra_service.get("amount"))
+            amount = sum(_safe_amount(s.get("amount")) for s in extra_services)
             session["extra_service_amount"] = str(amount)
 
-            # Calculate waiter_service_amount for the session
-            # waiter_service can arrive as a single dict {} or a list [{}] — normalise to list
-            waiter_amount = 0
+            # Calculate waiter_service_amount for the session.
+            # waiter_service can arrive as a single dict {} or a list [{}] — normalise to list.
             raw_waiter = session.get("waiter_service", [])
             waiter_services = [raw_waiter] if isinstance(raw_waiter, dict) and raw_waiter else (raw_waiter if isinstance(raw_waiter, list) else [])
-            for waiter_service in waiter_services:
-                if waiter_service.get("amount"):
-                    waiter_amount = waiter_amount + int(waiter_service.get("amount"))
+            waiter_amount = sum(_safe_amount(s.get("amount")) for s in waiter_services)
             session["waiter_service_amount"] = str(waiter_amount)
 
         request.data["sessions"] = sessions
@@ -309,10 +329,7 @@ class EventBookingViewSet(generics.GenericAPIView):
                     service.get("extra") for service in session.extra_service
                 ):
                     session.extra_service_amount = str(
-                        sum(
-                            int(service.get("amount", 0))
-                            for service in session.extra_service
-                        )
+                        sum(_safe_amount(s.get("amount")) for s in session.extra_service)
                     )
                     changed = True
 
@@ -324,10 +341,7 @@ class EventBookingViewSet(generics.GenericAPIView):
                     raw_ws = session.waiter_service
                     ws_list = [raw_ws] if isinstance(raw_ws, dict) and raw_ws else (raw_ws if isinstance(raw_ws, list) else [])
                     session.waiter_service_amount = str(
-                        sum(
-                            int(service.get("amount", 0))
-                            for service in ws_list
-                        )
+                        sum(_safe_amount(s.get("amount")) for s in ws_list)
                     )
                     changed = True
 
@@ -381,20 +395,14 @@ class EventBookingGetViewSet(generics.GenericAPIView):
 
                     if extra_service:
                         session["extra_service_amount"] = str(
-                            sum(
-                                int(service.get("amount", 0))
-                                for service in extra_service
-                            )
+                            sum(_safe_amount(s.get("amount")) for s in extra_service)
                         )
 
                     raw_ws = session.get("waiter_service", [])
                     ws_list = [raw_ws] if isinstance(raw_ws, dict) and raw_ws else (raw_ws if isinstance(raw_ws, list) else [])
                     if ws_list:
                         session["waiter_service_amount"] = str(
-                            sum(
-                                int(service.get("amount", 0))
-                                for service in ws_list
-                            )
+                            sum(_safe_amount(s.get("amount")) for s in ws_list)
                         )
 
                     if selected_items and isinstance(selected_items, dict):

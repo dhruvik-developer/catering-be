@@ -8,8 +8,8 @@ from .views import (
 
 
 urlpatterns = [
-    path("categories/", CategoryListCreateAPIView.as_view()),
-    path("categories/<int:pk>/", CategoryDetailAPIView.as_view()),
+    path("vendor-categories/", CategoryListCreateAPIView.as_view()),
+    path("vendor-categories/<int:pk>/", CategoryDetailAPIView.as_view()),
     path("vendors/", VendorListCreateAPIView.as_view()),
     path("vendors/<int:pk>/", VendorDetailAPIView.as_view()),
 ]

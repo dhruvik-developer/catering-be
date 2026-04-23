@@ -4,9 +4,15 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
-from .serializers import *
+from .models import UserModel, Note, BusinessProfile
+from .serializers import (
+    LoginSerializer,
+    NoteSerializer,
+    UserCreateSerializer,
+    ChangePasswordSerializer,
+    BusinessProfileSerializer,
+)
 from django.shortcuts import get_object_or_404
-from django.contrib.auth.hashers import check_password
 from radha.Utils.permissions import IsAdminUserOrReadOnly, user_has_permission, get_effective_permission_codes
 
 # --------------------    LoginViewSet    --------------------
@@ -24,7 +30,6 @@ class LoginViewSet(generics.GenericAPIView):
         username = request.data.get("username")
         password = request.data.get("password")
         user = authenticate(request, username=username, password=password)
-        print("user--==user", user)
         if user:
             user_type = "admin" if user.is_superuser or user.is_staff else "user"
             if hasattr(user, "staff_profile"):
@@ -49,15 +54,14 @@ class LoginViewSet(generics.GenericAPIView):
                 },
                 status=status.HTTP_200_OK,
             )
-        else:
-            return Response(
-                {
-                    "status": False,
-                    "message": "Something went wrong",  # Fixed typo
-                    "data": {},
-                },
-                status=status.HTTP_200_OK,
-            )
+        return Response(
+            {
+                "status": False,
+                "message": "Invalid username or password.",
+                "data": {},
+            },
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
 
 class NoteViewSet(generics.GenericAPIView):
@@ -171,8 +175,8 @@ class UserCreateAPIView(generics.GenericAPIView):
         serializer = self.get_serializer(users, many=True)
         return Response(
             {
-                "status": False,
-                "message": "User List Fatch successfully.",
+                "status": True,
+                "message": "User list fetched successfully.",
                 "data": serializer.data,
             },
             status=status.HTTP_200_OK,
@@ -224,18 +228,13 @@ class ChangePasswordAPIView(generics.GenericAPIView):
                 status=status.HTTP_200_OK,
             )
 
-        # Custom error format
         error_messages = []
         for field, errors in serializer.errors.items():
-            print("serializer.errors.items()")
             error_messages.extend(errors)
 
         return Response(
-            {"status": False, "message": error_messages[0]}, status=status.HTTP_200_OK
+            {"status": False, "message": error_messages[0]}, status=status.HTTP_400_BAD_REQUEST
         )
-
-
-# python manage.py runserver 192.168.1.83:8001
 
 
 class BusinessProfileAPIView(generics.GenericAPIView):

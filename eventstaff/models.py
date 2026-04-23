@@ -281,7 +281,7 @@ class EventStaffAssignment(models.Model):
         if self.paid_amount is None:
             self.paid_amount = Decimal("0.00")
 
-        self.remaining_amount = self.total_amount - Decimal(str(self.paid_amount))
+        self.remaining_amount = self.total_amount - self.paid_amount
 
         if self.paid_amount <= 0:
             self.payment_status = "Pending"

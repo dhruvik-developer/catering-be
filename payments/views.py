@@ -2,10 +2,11 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from Expense.models import Expense
 from eventstaff.models import EventStaffAssignment, FixedStaffSalaryPayment
-from django.db.models import Sum
+from django.db.models import Sum, Case, When, F, Value, DecimalField
 from radha.Utils.permissions import *
 from .serializers import *
 from datetime import date
+from decimal import Decimal
 
 
 # --------------------    PaymentViewSet    --------------------
@@ -93,7 +94,6 @@ class PaymentViewSet(generics.GenericAPIView):
 
                 # Record transaction history if advance was paid
                 if tx_amount > 0:
-                    from decimal import Decimal
                     tx_type = "PARTIAL"
                     if existing_payment.pending_amount <= 0:
                         tx_type = "FINAL"
@@ -130,7 +130,6 @@ class PaymentViewSet(generics.GenericAPIView):
 
                 # Record transaction history if advance was paid on creation
                 if tx_amount > 0:
-                    from decimal import Decimal
                     TransactionHistory.objects.create(
                         payment=payment,
                         transaction_date=payment_date,
@@ -191,8 +190,6 @@ class EditPaymentViewSet(generics.GenericAPIView):
             note = request.data.get("note", "")
 
             if transaction_amount:
-                from decimal import Decimal
-
                 tx_amount = Decimal(str(transaction_amount))
                 new_advance = payment.advance_amount + tx_amount
                 new_pending = payment.total_amount - new_advance
@@ -218,8 +215,6 @@ class EditPaymentViewSet(generics.GenericAPIView):
                 updated_payment = serializer.save()
 
                 # Auto-update payment_status based on pending
-                from decimal import Decimal
-
                 pending = updated_payment.total_amount - updated_payment.advance_amount
                 if pending < 0:
                     pending = Decimal("0")
@@ -327,31 +322,38 @@ class AllTransactionViewSet(generics.GenericAPIView):
                 status=status.HTTP_200_OK,
             )
 
-        # 🔹 Payment Aggregation
-        total_payment_amount = (
-            payments.aggregate(total=Sum("total_amount"))["total"] or 0
+        zero = Value(Decimal("0"), output_field=DecimalField(max_digits=20, decimal_places=2))
+
+        payment_totals = payments.aggregate(
+            total_payment_amount=Sum("total_amount"),
+            total_paid_amount=Sum(
+                Case(
+                    When(payment_status="PAID", then=F("total_amount")),
+                    When(payment_status__in=["UNPAID", "PARTIAL"], then=F("advance_amount")),
+                    default=zero,
+                    output_field=DecimalField(max_digits=20, decimal_places=2),
+                )
+            ),
+            total_unpaid_amount=Sum(
+                Case(
+                    When(payment_status__in=["UNPAID", "PARTIAL"], then=F("pending_amount")),
+                    default=zero,
+                    output_field=DecimalField(max_digits=20, decimal_places=2),
+                )
+            ),
+            total_settlement_amount=Sum("settlement_amount"),
         )
+        total_payment_amount = payment_totals["total_payment_amount"] or Decimal("0")
+        total_paid_amount = payment_totals["total_paid_amount"] or Decimal("0")
+        total_unpaid_amount = payment_totals["total_unpaid_amount"] or Decimal("0")
+        total_settlement_amount = payment_totals["total_settlement_amount"] or Decimal("0")
 
-        total_paid_amount = 0
-        total_unpaid_amount = 0
-        total_settlement_amount = 0
-
-        for payment in payments:
-            if payment.payment_status == "PAID":
-                total_paid_amount += payment.total_amount
-            elif payment.payment_status in ["UNPAID", "PARTIAL"]:
-                total_unpaid_amount += payment.pending_amount
-                total_paid_amount += payment.advance_amount
-
-            total_settlement_amount += payment.settlement_amount or 0
-
-        # 🔹 Expense Aggregation
-        direct_expense_total = expenses.aggregate(total=Sum("amount"))["total"] or 0
+        direct_expense_total = expenses.aggregate(total=Sum("amount"))["total"] or Decimal("0")
         staff_paid_total = (
-            staff_assignments.aggregate(total=Sum("paid_amount"))["total"] or 0
+            staff_assignments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0")
         )
         fixed_salary_paid_total = (
-            fixed_salary_payments.aggregate(total=Sum("paid_amount"))["total"] or 0
+            fixed_salary_payments.aggregate(total=Sum("paid_amount"))["total"] or Decimal("0")
         )
         total_expense_amount = (
             direct_expense_total + staff_paid_total + fixed_salary_paid_total
