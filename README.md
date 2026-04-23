@@ -1,35 +1,43 @@
 # Radha Backend
 
-Radha Backend is a Django REST API for catering/event operations.  
-It includes modules for event bookings, menu items and recipe ingredients, stock management, payments, expenses, vendors, users, and event staff assignment.
+Radha Backend is a Django REST API for catering and event operations.  
+It includes user/auth, permissions, bookings, inventory, ingredients, vendors, expenses, payments, event staff, and ground management.
 
 ## Tech Stack
 
 - Python
-- Django
-- Django REST Framework
-- PostgreSQL
+- Django `5.1.4`
+- Django REST Framework `3.15.2`
 - Simple JWT (`djangorestframework-simplejwt`)
-- CORS Headers
+- django-filter
+- django-cors-headers
+- Pillow
+- Gunicorn
+- Database currently configured in code: SQLite (`db.sqlite3`)
 
 ## Project Structure
 
 ```text
-radha-backend/
-|- radha/                  # Django project settings, root URLs, utils
-|- user/                    # Authentication, users, notes, business profile
-|- category/                # Food categories
-|- item/                    # Menu items + recipe ingredient mapping
-|- ListOfIngridients/       # Ingredient categories/items (legacy spelling in code)
-|- stockmanagement/         # Stock categories/items + stock add/remove + alerts
-|- eventbooking/            # Event booking + sessions + ingredient calculation
-|- eventstaff/              # Staff, roles, waiter types, event staff assignment
-|- payments/                # Payments and transaction history
-|- Expense/                 # Expense categories/entities/expenses
-|- vendor/                  # Vendors and vendor-category mapping
-|- branchmanagement/        # Branch formats and invoice series
+radha-be/
+|- radha/                   # Django project settings, root URLs, middleware, utils
+|- accesscontrol/           # Access-control modules and user permission assignments
+|- user/                    # Auth/login, users, notes, business profile
+|- category/                # Menu categories
+|- item/                    # Menu items and recipe ingredient mapping
+|- ListOfIngridients/       # Ingredient categories/items (legacy spelling kept)
+|- stockmanagement/         # Stock categories/items and quantity operations
+|- eventbooking/            # Event bookings, sessions, item configs, vendor assignments
+|- eventstaff/              # Roles, staff, waiter types, assignments, salary/withdrawals
+|- groundmanagement/        # Ground categories/items
+|- payments/                # Payments and transactions
+|- Expense/                 # Expenses, expense categories, entities
+|- vendor/                  # Vendors and vendor categories
+|- branchmanagement/        # Present in repo, currently NOT wired in urls/settings
+|- media/                   # Uploaded media files
 |- manage.py
 |- requirements.txt
+|- .env.example
+|- radha-beckend.sh
 ```
 
 ## Setup
@@ -39,15 +47,15 @@ radha-backend/
 Windows (PowerShell):
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
 Linux/macOS:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 ```
 
 ### 2. Install dependencies
@@ -56,16 +64,30 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure database
+### 3. Configure environment
 
-Current settings use PostgreSQL in `radha/settings.py`:
+Copy `.env.example` to `.env` and fill values:
 
-- DB Name: `radha`
-- User: `postgres`
-- Host: `localhost`
-- Port: `5432`
+```bash
+cp .env.example .env
+```
 
-Update these values for your local/server environment.
+PowerShell alternative:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Main variables:
+
+- `SERVER`
+- `DJANGO_SECRET_KEY`
+- `DJANGO_DEBUG`
+- `DJANGO_ALLOWED_HOSTS`
+- `CORS_ALLOWED_ORIGINS`
+- `CORS_ALLOW_ALL_ORIGINS`
+- `DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` (template values; DB env block is currently commented in settings)
+- `JWT_SIGNING_KEY`
 
 ### 4. Apply migrations
 
@@ -79,15 +101,13 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-Base API URL (default): `http://127.0.0.1:8000/api/`
+Base URL: `http://127.0.0.1:8000`  
+API prefix: `/api/`
 
 ## Authentication
 
-- Custom login endpoint: `POST /api/login/`
-- On successful login, response includes JWT tokens:
-  - `tokens.access`
-  - `tokens.refresh`
-- Auth header format:
+- Login endpoint: `POST /api/login/`
+- JWT header:
 
 ```http
 Authorization: Bearer <access_token>
@@ -95,49 +115,43 @@ Authorization: Bearer <access_token>
 
 ## API Modules and Endpoints
 
-All endpoints below are under `/api/`.
+All routes are under `/api/`.
+
+### Access Control
+
+- `GET /access-control/modules/`
+- `GET /access-control/users/`
+- `GET|PUT /access-control/users/<uuid:user_id>/permissions/`
+- `GET /me/permissions/`
 
 ### User
 
 - `POST /login/`
-- `POST /users/`
-- `GET /users/`
+- `POST|GET /users/`
 - `DELETE /users/<uuid:id>/`
 - `POST /change-password/<uuid:id>/`
-- `POST /add-note/`
-- `GET /get-note/`
+- `POST|GET /add-note/` and `/get-note/`
 - `PUT /update-note/<int:pk>/`
-- `GET /business-profiles/`
-- `POST /business-profiles/`
-- `GET /business-profiles/<int:id>/`
-- `PUT /business-profiles/<int:id>/`
+- `GET|POST /business-profiles/`
+- `GET|PUT /business-profiles/<int:id>/`
 
-### Category (menu categories)
+### Category (Menu)
 
-- `GET /categories/`
-- `POST /categories/`
-- `GET /categories/<int:pk>/`
-- `PUT /categories/<int:pk>/`
-- `DELETE /categories/<int:pk>/`
+- `GET|POST /categories/`
+- `GET|PUT|DELETE /categories/<int:pk>/`
 - `POST /category-positions-changes/<int:pk>/`
 
 ### Item and Recipes
 
-- `GET /items/`
-- `POST /items/`
-- `GET /items/<int:pk>/`
-- `PUT /items/<int:pk>/`
-- `DELETE /items/<int:pk>/`
-- `GET /recipes/`
-- `POST /recipes/`
-- `GET /recipes/<int:pk>/`
-- `PUT /recipes/<int:pk>/`
-- `DELETE /recipes/<int:pk>/`
+- `GET|POST /items/`
+- `GET|PUT|DELETE /items/<int:pk>/`
+- `GET|POST /recipes/`
+- `GET|PUT|DELETE /recipes/<int:pk>/`
 - `GET /recipes/item/<int:item_id>/`
 
 ### Ingredients (`ListOfIngridients`)
 
-Legacy + canonical endpoints both exist.
+Legacy + canonical endpoints are both available:
 
 - `GET|POST /ingridients-categories/`
 - `GET|PUT|DELETE /ingridients-categories/<int:pk>/`
@@ -155,10 +169,11 @@ Legacy + canonical endpoints both exist.
 - `POST /status-change-event-bookings/<int:pk>/`
 - `GET /pending-event-bookings/`
 - `GET /get-all/`
-
-Notes:
-- Event session dates use `DD-MM-YYYY`.
-- Ingredient requirement is dynamically computed from selected items and recipe mapping.
+- `GET /session-ingredients/`
+- `GET|POST /event-item-configs/`
+- `GET|PUT|PATCH|DELETE /event-item-configs/<int:pk>/`
+- `GET|POST /ingredient-vendor-assignments/`
+- `GET|PUT|PATCH|DELETE /ingredient-vendor-assignments/<int:pk>/`
 
 ### Stock Management
 
@@ -166,22 +181,14 @@ Notes:
 - `GET|PUT|DELETE /stoke-categories/<int:pk>/`
 - `GET|POST /stoke-items/`
 - `GET|PUT|DELETE /stoke-items/<int:pk>/`
-- `POST /add-stoke-item/` (remove quantity)
-- `PUT /add-stoke-item/` (add quantity)
+- `POST|PUT /add-stoke-item/`
 - `GET /alert-stoke-item/`
 
 ### Payments
 
-- `GET|POST /parties/`
-- `GET|PUT|PATCH|DELETE /parties/<int:pk>/`
 - `GET|POST /payments/`
 - `GET|PUT|DELETE /payments/<int:pk>/`
 - `GET /all-transaction/`
-
-Notes:
-- `payment_date` uses `DD-MM-YYYY`.
-- Transaction history is automatically created for payment updates.
-- Payments now support `party_id`, `party_name`, `party_gst_no`, and `party_code`.
 
 ### Expense
 
@@ -191,7 +198,7 @@ Notes:
 - `GET|PUT|DELETE /expenses-categories/<int:pk>/`
 - `GET|POST /entities/`
 - `GET|PUT|DELETE /entities/<int:pk>/`
-- `GET /entities/<int:pk>/summary/?period=all|month|year`
+- `GET /entities/<int:pk>/summary/`
 
 ### Vendor
 
@@ -200,68 +207,55 @@ Notes:
 - `GET|POST /categories/`
 - `GET|PUT|DELETE /categories/<int:pk>/`
 
-### Branch Formats & Invoice Series
-
-- `GET|POST /invoice-setup/`
-- `GET|PUT|PATCH|DELETE /invoice-setup/<int:pk>/`
-- `GET|POST /party-information/`
-- `GET|PUT|PATCH|DELETE /party-information/<int:pk>/`
-
-Notes:
-- Use `invoice_prefix` like `MBR26-`.
-- `invoice-setup` stores branch details like branch name, address, and branch GST number.
-- `party-information` stores party details plus `invoice_prefix` and `next_sequence_no`.
-- `party-information` response includes `next_invoice_preview`, for example `MBR26-163`.
-- `party-information` supports `search` and `is_active` query params.
-- If `party_code` is not sent, it is auto-generated as a numeric code like `1001`.
-
 ### Event Staff
 
 - `GET|POST /roles/`
 - `GET|PUT|PATCH|DELETE /roles/<int:pk>/`
-- `GET|POST /waiter-types/`
-- `GET|PUT|PATCH|DELETE /waiter-types/<int:pk>/`
 - `GET|POST /staff/`
 - `GET|PUT|PATCH|DELETE /staff/<int:pk>/`
 - `GET /staff/waiters/`
+- `GET /staff/<int:pk>/fixed-payment-summary/`
+- `GET|POST /waiter-types/`
+- `GET|PUT|PATCH|DELETE /waiter-types/<int:pk>/`
 - `GET|POST /event-assignments/`
 - `GET|PUT|PATCH|DELETE /event-assignments/<int:pk>/`
 - `GET /event-assignments/event-summary/`
+- `GET|POST /fixed-salary-payments/`
+- `GET|PUT|PATCH|DELETE /fixed-salary-payments/<int:pk>/`
+- `GET|POST /staff-withdrawals/`
+- `GET|PUT|PATCH|DELETE /staff-withdrawals/<int:pk>/`
 
-## Data Model Overview
+### Ground Management
 
-Main entities:
+- `GET|POST /ground/categories/`
+- `GET|PUT|PATCH|DELETE /ground/categories/<int:pk>/`
+- `GET|POST /ground/items/`
+- `GET|PUT|PATCH|DELETE /ground/items/<int:pk>/`
 
-- `UserModel` (custom auth user, UUID primary key)
-- `EventBooking` -> has many `EventSession`
-- `Item` -> has many `RecipeIngredient`
-- `RecipeIngredient` -> links `Item` and `IngridientsItem`
-- `StokeItem` -> belongs to `StokeCategory`
-- `Payment` -> belongs to `EventBooking`, has many `TransactionHistory`
-- `Expense` -> belongs to `Expense Category`, optional `ExpenseEntity`
-- `Vendor` -> mapped to ingredient categories via `VendorCategory`
-- `BranchFormat` -> stores branch details and invoice sequence configuration
-- `Staff`, `StaffRole`, `WaiterType`, `EventStaffAssignment`
+### Branch Management (Currently Disabled)
 
-## Existing Script
+These routes exist in `branchmanagement/urls.py` but are currently commented out in `radha/urls.py` and `radha/settings.py`:
 
-- `radha-beckend.sh` starts Gunicorn:
+- `/invoice-setup/`
+- `/party-information/`
+- `/global-config/`
+- `/branch-items/`
+- `/branch-bills/`
 
-```bash
-gunicorn radha.wsgi:application --bind 127.0.0.1:8005
-```
+## Deployment Script
 
-## Postman
+`radha-beckend.sh` does:
 
-A collection exists at:
+1. Activate venv (if present)
+2. Run migrations
+3. Start Gunicorn with `radha.wsgi:application`
 
-- `radha.postman_collection.json`
+Default bind: `127.0.0.1:8006`
 
-Import it into Postman to test endpoints quickly.
+## Important Notes
 
-## Known Issues / Important Notes
-
-- Route collision: both `category` and `vendor` apps register `/api/categories/` and `/api/categories/<int:pk>/`.  
-  Because `category.urls` is included first in `radha/urls.py`, vendor category routes may be shadowed.
-- Sensitive values (secret key and DB credentials) are currently hardcoded in `radha/settings.py`. Move these to environment variables for production.
-- The code comments in settings mention Django 4.2, while `requirements.txt` pins Django 5.1.4.
+- Route collision exists on `/api/categories/` and `/api/categories/<int:pk>/` between `category` and `vendor`.
+  `category.urls` is included first in `radha/urls.py`, so vendor category endpoints can be shadowed.
+- `CORS_ALLOW_ALL_ORIGINS` defaults to `True` in settings; tighten this in production.
+- `branchmanagement` is present but not active in installed apps and root URLs.
+- README no longer references a Postman collection file because `radha.postman_collection.json` is not present in this repository.
