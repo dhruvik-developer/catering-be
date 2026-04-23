@@ -95,7 +95,21 @@ Main variables:
 python manage.py migrate
 ```
 
-### 5. Run development server
+### 5. Sync permissions
+
+Radha Backend automatically generates standard CRUD permissions (view, create, update, delete) for all custom models. To populate the database with these permissions, run:
+
+```bash
+python manage.py sync_permissions
+```
+
+To preview the generated permission catalog JSON without saving:
+
+```bash
+python manage.py sync_permissions --print-catalog
+```
+
+### 6. Run development server
 
 ```bash
 python manage.py runserver

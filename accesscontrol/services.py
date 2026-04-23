@@ -1,12 +1,14 @@
-from accesscontrol.catalog import iter_catalog_permissions
+from accesscontrol.catalog import build_permission_catalog, iter_catalog_permissions
 from accesscontrol.models import AccessPermission, PermissionModule
 
 
-def sync_permission_catalog():
+def sync_permission_catalog(catalog=None):
+    catalog_rows = catalog if catalog is not None else build_permission_catalog()
+
     active_module_codes = set()
     active_permission_codes = set()
 
-    for row in iter_catalog_permissions():
+    for row in iter_catalog_permissions(catalog_rows):
         active_module_codes.add(row["module_code"])
         active_permission_codes.add(row["permission_code"])
 
@@ -37,3 +39,8 @@ def sync_permission_catalog():
         is_active=False
     )
     PermissionModule.objects.exclude(code__in=active_module_codes).update(is_active=False)
+
+    return {
+        "active_modules": len(active_module_codes),
+        "active_permissions": len(active_permission_codes),
+    }

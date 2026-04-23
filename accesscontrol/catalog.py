@@ -1,424 +1,266 @@
-PERMISSION_CATALOG = [
-    {
-        "code": "categories",
-        "name": "Menu Categories",
-        "description": "Manage menu category records.",
-        "permissions": [
-            ("view", "View menu categories"),
-            ("create", "Create menu categories"),
-            ("update", "Update menu categories"),
-            ("delete", "Delete menu categories"),
-        ],
-    },
-    {
-        "code": "event_bookings",
-        "name": "Event Bookings",
-        "description": "Manage event bookings and schedules.",
-        "permissions": [
-            ("view", "View event bookings"),
-            ("create", "Create event bookings"),
-            ("update", "Update event bookings"),
-            ("delete", "Delete event bookings"),
-            ("change_status", "Change event booking status"),
-        ],
-    },
-    {
-        "code": "event_booking_reports",
-        "name": "Event Booking Reports",
-        "description": "Access booking summaries and event reports.",
-        "permissions": [
-            ("view", "View booking reports"),
-        ],
-    },
-    {
-        "code": "session_ingredients",
-        "name": "Session Ingredients",
-        "description": "Manage ingredients linked to event sessions.",
-        "permissions": [
-            ("view", "View session ingredients"),
-            ("create", "Create session ingredients"),
-            ("update", "Update session ingredients"),
-            ("delete", "Delete session ingredients"),
-        ],
-    },
-    {
-        "code": "event_item_configs",
-        "name": "Event Item Configs",
-        "description": "Manage event item configuration records.",
-        "permissions": [
-            ("view", "View event item configs"),
-            ("create", "Create event item configs"),
-            ("update", "Update event item configs"),
-            ("delete", "Delete event item configs"),
-        ],
-    },
-    {
-        "code": "ingredient_vendor_assignments",
-        "name": "Ingredient Vendor Assignments",
-        "description": "Manage vendor assignments for ingredients.",
-        "permissions": [
-            ("view", "View ingredient vendor assignments"),
-            ("create", "Create ingredient vendor assignments"),
-            ("update", "Update ingredient vendor assignments"),
-            ("delete", "Delete ingredient vendor assignments"),
-        ],
-    },
-    {
-        "code": "items",
-        "name": "Items",
-        "description": "Manage item master data.",
-        "permissions": [
-            ("view", "View items"),
-            ("create", "Create items"),
-            ("update", "Update items"),
-            ("delete", "Delete items"),
-        ],
-    },
-    {
-        "code": "recipes",
-        "name": "Recipes",
-        "description": "Manage recipe ingredients.",
-        "permissions": [
-            ("view", "View recipes"),
-            ("create", "Create recipes"),
-            ("update", "Update recipes"),
-            ("delete", "Delete recipes"),
-        ],
-    },
-    {
-        "code": "ingredient_categories",
-        "name": "Ingredient Categories",
-        "description": "Manage ingredient categories and ingredient items.",
-        "permissions": [
-            ("view", "View ingredient categories"),
-            ("create", "Create ingredient categories"),
-            ("update", "Update ingredient categories"),
-            ("delete", "Delete ingredient categories"),
-        ],
-    },
-    {
-        "code": "ingredient_items",
-        "name": "Ingredient Items",
-        "description": "Manage ingredient items.",
-        "permissions": [
-            ("view", "View ingredient items"),
-            ("create", "Create ingredient items"),
-            ("update", "Update ingredient items"),
-            ("delete", "Delete ingredient items"),
-        ],
-    },
-    {
-        "code": "payments",
-        "name": "Payments",
-        "description": "Manage payment entries.",
-        "permissions": [
-            ("view", "View payments"),
-            ("create", "Create payments"),
-            ("update", "Update payments"),
-            ("delete", "Delete payments"),
-        ],
-    },
-    {
-        "code": "transactions",
-        "name": "Transactions",
-        "description": "View transaction reports.",
-        "permissions": [
-            ("view", "View transactions"),
-        ],
-    },
-    {
-        "code": "stock_categories",
-        "name": "Stock Categories",
-        "description": "Manage stock categories.",
-        "permissions": [
-            ("view", "View stock categories"),
-            ("create", "Create stock categories"),
-            ("update", "Update stock categories"),
-            ("delete", "Delete stock categories"),
-        ],
-    },
-    {
-        "code": "stock_items",
-        "name": "Stock Items",
-        "description": "Manage stock items.",
-        "permissions": [
-            ("view", "View stock items"),
-            ("create", "Create stock items"),
-            ("update", "Update stock items"),
-            ("delete", "Delete stock items"),
-        ],
-    },
-    {
-        "code": "stock_adjustments",
-        "name": "Stock Adjustments",
-        "description": "Add or remove stock quantities.",
-        "permissions": [
-            ("view", "View stock adjustments"),
-            ("create", "Create stock adjustments"),
-            ("update", "Update stock adjustments"),
-        ],
-    },
-    {
-        "code": "stock_alerts",
-        "name": "Stock Alerts",
-        "description": "View stock alert information.",
-        "permissions": [
-            ("view", "View stock alerts"),
-        ],
-    },
-    {
-        "code": "users",
-        "name": "Users",
-        "description": "Manage user accounts.",
-        "permissions": [
-            ("view", "View users"),
-            ("create", "Create users"),
-            ("update", "Update users"),
-            ("delete", "Delete users"),
-            ("change_password", "Change user passwords"),
-        ],
-    },
-    {
-        "code": "notes",
-        "name": "Notes",
-        "description": "Manage notes.",
-        "permissions": [
-            ("view", "View notes"),
-            ("create", "Create notes"),
-            ("update", "Update notes"),
-            ("delete", "Delete notes"),
-        ],
-    },
-    {
-        "code": "business_profiles",
-        "name": "Business Profiles",
-        "description": "Manage business profile details.",
-        "permissions": [
-            ("view", "View business profiles"),
-            ("create", "Create business profiles"),
-            ("update", "Update business profiles"),
-            ("delete", "Delete business profiles"),
-        ],
-    },
-    {
-        "code": "expense_entries",
-        "name": "Expenses",
-        "description": "Manage expense entries.",
-        "permissions": [
-            ("view", "View expenses"),
-            ("create", "Create expenses"),
-            ("update", "Update expenses"),
-            ("delete", "Delete expenses"),
-        ],
-    },
-    {
-        "code": "expense_categories",
-        "name": "Expense Categories",
-        "description": "Manage expense categories.",
-        "permissions": [
-            ("view", "View expense categories"),
-            ("create", "Create expense categories"),
-            ("update", "Update expense categories"),
-            ("delete", "Delete expense categories"),
-        ],
-    },
-    {
-        "code": "expense_entities",
-        "name": "Expense Entities",
-        "description": "Manage expense entities.",
-        "permissions": [
-            ("view", "View expense entities"),
-            ("create", "Create expense entities"),
-            ("update", "Update expense entities"),
-            ("delete", "Delete expense entities"),
-        ],
-    },
-    {
-        "code": "expense_summaries",
-        "name": "Expense Summaries",
-        "description": "Access expense summary reports.",
-        "permissions": [
-            ("view", "View expense summaries"),
-        ],
-    },
-    {
-        "code": "vendor_categories",
-        "name": "Vendor Categories",
-        "description": "Manage vendor-facing categories.",
-        "permissions": [
-            ("view", "View vendor categories"),
-            ("create", "Create vendor categories"),
-            ("update", "Update vendor categories"),
-            ("delete", "Delete vendor categories"),
-        ],
-    },
-    {
-        "code": "vendors",
-        "name": "Vendors",
-        "description": "Manage vendor records.",
-        "permissions": [
-            ("view", "View vendors"),
-            ("create", "Create vendors"),
-            ("update", "Update vendors"),
-            ("delete", "Delete vendors"),
-        ],
-    },
-    {
-        "code": "staff_roles",
-        "name": "Staff Roles",
-        "description": "Manage staff role master data.",
-        "permissions": [
-            ("view", "View staff roles"),
-            ("create", "Create staff roles"),
-            ("update", "Update staff roles"),
-            ("delete", "Delete staff roles"),
-        ],
-    },
-    {
-        "code": "waiter_types",
-        "name": "Waiter Types",
-        "description": "Manage waiter type master data.",
-        "permissions": [
-            ("view", "View waiter types"),
-            ("create", "Create waiter types"),
-            ("update", "Update waiter types"),
-            ("delete", "Delete waiter types"),
-        ],
-    },
-    {
-        "code": "staff",
-        "name": "Staff",
-        "description": "Manage staff records.",
-        "permissions": [
-            ("view", "View staff"),
-            ("create", "Create staff"),
-            ("update", "Update staff"),
-            ("delete", "Delete staff"),
-            ("view_summary", "View staff summaries"),
-        ],
-    },
-    {
-        "code": "fixed_staff_payments",
-        "name": "Fixed Staff Payments",
-        "description": "Manage fixed staff salary payments.",
-        "permissions": [
-            ("view", "View fixed staff payments"),
-            ("create", "Create fixed staff payments"),
-            ("update", "Update fixed staff payments"),
-            ("delete", "Delete fixed staff payments"),
-        ],
-    },
-    {
-        "code": "staff_withdrawals",
-        "name": "Staff Withdrawals",
-        "description": "Manage staff withdrawals.",
-        "permissions": [
-            ("view", "View staff withdrawals"),
-            ("create", "Create staff withdrawals"),
-            ("update", "Update staff withdrawals"),
-            ("delete", "Delete staff withdrawals"),
-        ],
-    },
-    {
-        "code": "event_staff_assignments",
-        "name": "Event Staff Assignments",
-        "description": "Manage event staff assignments.",
-        "permissions": [
-            ("view", "View event staff assignments"),
-            ("create", "Create event staff assignments"),
-            ("update", "Update event staff assignments"),
-            ("delete", "Delete event staff assignments"),
-            ("view_summary", "View event staff summaries"),
-        ],
-    },
-    {
-        "code": "ground_categories",
-        "name": "Ground Categories",
-        "description": "Manage ground categories.",
-        "permissions": [
-            ("view", "View ground categories"),
-            ("create", "Create ground categories"),
-            ("update", "Update ground categories"),
-            ("delete", "Delete ground categories"),
-        ],
-    },
-    {
-        "code": "ground_items",
-        "name": "Ground Items",
-        "description": "Manage ground items.",
-        "permissions": [
-            ("view", "View ground items"),
-            ("create", "Create ground items"),
-            ("update", "Update ground items"),
-            ("delete", "Delete ground items"),
-        ],
-    },
-    {
-        "code": "invoice_setup",
-        "name": "Invoice Setup",
-        "description": "Manage invoice setup entries.",
-        "permissions": [
-            ("view", "View invoice setup"),
-            ("create", "Create invoice setup"),
-            ("update", "Update invoice setup"),
-            ("delete", "Delete invoice setup"),
-        ],
-    },
-    {
-        "code": "party_information",
-        "name": "Party Information",
-        "description": "Manage party information records.",
-        "permissions": [
-            ("view", "View party information"),
-            ("create", "Create party information"),
-            ("update", "Update party information"),
-            ("delete", "Delete party information"),
-        ],
-    },
-    {
-        "code": "global_configuration",
-        "name": "Global Configuration",
-        "description": "Manage global configuration.",
-        "permissions": [
-            ("view", "View global configuration"),
-            ("create", "Create global configuration"),
-            ("update", "Update global configuration"),
-            ("delete", "Delete global configuration"),
-        ],
-    },
-    {
-        "code": "branch_items",
-        "name": "Branch Items",
-        "description": "Manage branch items.",
-        "permissions": [
-            ("view", "View branch items"),
-            ("create", "Create branch items"),
-            ("update", "Update branch items"),
-            ("delete", "Delete branch items"),
-        ],
-    },
-    {
-        "code": "branch_bills",
-        "name": "Branch Bills",
-        "description": "Manage branch bills.",
-        "permissions": [
-            ("view", "View branch bills"),
-            ("create", "Create branch bills"),
-            ("update", "Update branch bills"),
-            ("delete", "Delete branch bills"),
-        ],
-    },
-]
+import ast
+from collections import defaultdict
+import inspect
+from importlib import import_module
+
+from django.apps import apps
+
+HTTP_METHOD_PERMISSION_MAP = {
+    "GET": "view",
+    "HEAD": "view",
+    "OPTIONS": "view",
+    "POST": "create",
+    "PUT": "update",
+    "PATCH": "update",
+    "DELETE": "delete",
+}
+
+VIEWSET_METHOD_ACTION_PAIRS = (
+    ("GET", "list"),
+    ("GET", "retrieve"),
+    ("POST", "create"),
+    ("PUT", "update"),
+    ("PATCH", "partial_update"),
+    ("DELETE", "destroy"),
+)
+
+STANDARD_ACTION_ORDER = ("view", "create", "update", "delete")
 
 
-def iter_catalog_permissions():
-    for module_index, module in enumerate(PERMISSION_CATALOG, start=1):
-        for permission_index, permission in enumerate(module["permissions"], start=1):
+def _humanize(value):
+    return str(value).replace("_", " ").strip()
+
+
+def _module_name(resource_code):
+    return _humanize(resource_code).title()
+
+
+def _module_description(resource_code):
+    return f"Manage {_humanize(resource_code).lower()}."
+
+
+def _permission_name(resource_code, action):
+    return f"{_humanize(action).capitalize()} {_humanize(resource_code).lower()}"
+
+
+def _normalize_permission_codes(value, resource=None):
+    if not value:
+        return []
+
+    raw_values = [value] if isinstance(value, str) else list(value)
+    normalized = []
+
+    for raw_code in raw_values:
+        if not raw_code:
+            continue
+
+        code = str(raw_code).strip()
+        if not code:
+            continue
+
+        if "." in code:
+            normalized.append(code)
+        elif resource:
+            normalized.append(f"{resource}.{code}")
+
+    return normalized
+
+
+def _iter_all_view_classes():
+    for app_config in apps.get_app_configs():
+        module_name = f"{app_config.name}.views"
+
+        try:
+            module = import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name == module_name:
+                continue
+            raise
+
+        for _, cls in inspect.getmembers(module, inspect.isclass):
+            if cls.__module__ != module.__name__:
+                continue
+            yield cls
+
+
+def _iter_view_classes():
+    for cls in _iter_all_view_classes():
+        if getattr(cls, "permission_resource", None):
+            yield cls
+
+
+def _iter_direct_permission_codes_in_source():
+    for view_cls in _iter_all_view_classes():
+        try:
+            source = inspect.getsource(view_cls)
+        except OSError:
+            continue
+
+        try:
+            module_ast = ast.parse(source)
+        except SyntaxError:
+            continue
+
+        for node in ast.walk(module_ast):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Name):
+                continue
+            if node.func.id != "user_has_permission":
+                continue
+            if len(node.args) < 2:
+                continue
+
+            permission_node = node.args[1]
+            if isinstance(permission_node, ast.Constant) and isinstance(permission_node.value, str):
+                permission_code = permission_node.value.strip()
+                if "." in permission_code:
+                    yield permission_code
+
+
+def _get_method_permission_codes(view_cls, method, view_action=None):
+    permission_action_map = getattr(view_cls, "permission_action_map", {}) or {}
+    resource = getattr(view_cls, "permission_resource", None)
+
+    if view_action and view_action in permission_action_map:
+        return _normalize_permission_codes(permission_action_map[view_action], resource)
+
+    if method in permission_action_map:
+        return _normalize_permission_codes(permission_action_map[method], resource)
+
+    if not resource:
+        return []
+
+    permission_action = getattr(view_cls, "permission_action", None)
+    action = permission_action or HTTP_METHOD_PERMISSION_MAP.get(method)
+    if not action:
+        return []
+
+    return [f"{resource}.{action}"]
+
+
+def _iter_permission_codes_for_view(view_cls):
+    permission_action_map = getattr(view_cls, "permission_action_map", {}) or {}
+    resource = getattr(view_cls, "permission_resource", None)
+
+    for mapped_value in permission_action_map.values():
+        for code in _normalize_permission_codes(mapped_value, resource):
+            yield code
+
+    if getattr(view_cls, "permission_action", None) and resource:
+        yield f"{resource}.{view_cls.permission_action}"
+
+    try:
+        from rest_framework.viewsets import ViewSetMixin
+
+        is_view_set = issubclass(view_cls, ViewSetMixin)
+    except Exception:
+        is_view_set = False
+
+    if is_view_set:
+        for method, view_action in VIEWSET_METHOD_ACTION_PAIRS:
+            if hasattr(view_cls, view_action):
+                for code in _get_method_permission_codes(view_cls, method, view_action):
+                    yield code
+        return
+
+    for method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+        if hasattr(view_cls, method.lower()):
+            for code in _get_method_permission_codes(view_cls, method):
+                yield code
+
+
+def _action_sort_key(action):
+    if action in STANDARD_ACTION_ORDER:
+        return (STANDARD_ACTION_ORDER.index(action), action)
+    return (len(STANDARD_ACTION_ORDER), action)
+
+
+def build_permission_catalog():
+    catalog_dict = {}
+    excluded_apps = {"admin", "auth", "contenttypes", "sessions", "authtoken", "accesscontrol"}
+
+    # 1. Generate standard CRUD permissions from registered models
+    models = sorted(apps.get_models(), key=lambda m: (m._meta.app_label, m._meta.model_name))
+    for model in models:
+        if model._meta.app_label in excluded_apps:
+            continue
+            
+        resource = model._meta.model_name
+        name = str(model._meta.verbose_name_plural).title()
+        description = f"Manage {str(model._meta.verbose_name_plural).lower()}."
+        
+        catalog_dict[resource] = {
+            "code": resource,
+            "name": name,
+            "description": description,
+            "permissions": {
+                "view": f"View {str(model._meta.verbose_name).lower()}",
+                "create": f"Create {str(model._meta.verbose_name).lower()}",
+                "update": f"Update {str(model._meta.verbose_name).lower()}",
+                "delete": f"Delete {str(model._meta.verbose_name).lower()}"
+            }
+        }
+
+    # 2. Extract custom permissions and module actions from views/source
+    resource_actions = defaultdict(set)
+    for view_cls in _iter_view_classes():
+        for permission_code in _iter_permission_codes_for_view(view_cls):
+            if "." not in permission_code:
+                continue
+
+            resource, action = permission_code.split(".", 1)
+            if resource and action:
+                resource_actions[resource].add(action)
+
+    for permission_code in _iter_direct_permission_codes_in_source():
+        resource, action = permission_code.split(".", 1)
+        if resource and action:
+            resource_actions[resource].add(action)
+
+    # 3. Merge parsed view permissions into the catalog
+    for resource, actions in resource_actions.items():
+        if resource not in catalog_dict:
+            catalog_dict[resource] = {
+                "code": resource,
+                "name": _module_name(resource),
+                "description": _module_description(resource),
+                "permissions": {}
+            }
+            
+        for action in actions:
+            if action not in catalog_dict[resource]["permissions"]:
+                catalog_dict[resource]["permissions"][action] = _permission_name(resource, action)
+
+    # 4. Finalize the list structure, sorting actions logically
+    catalog = []
+    for resource in sorted(catalog_dict.keys()):
+        entry = catalog_dict[resource]
+        sorted_actions = sorted(entry["permissions"].keys(), key=_action_sort_key)
+        
+        catalog.append({
+            "code": entry["code"],
+            "name": entry["name"],
+            "description": entry["description"],
+            "permissions": [
+                (action, entry["permissions"][action])
+                for action in sorted_actions
+            ]
+        })
+
+    return catalog
+
+
+def iter_catalog_permissions(catalog=None):
+    catalog_rows = catalog if catalog is not None else build_permission_catalog()
+
+    for module_index, module in enumerate(catalog_rows, start=1):
+        for permission_index, permission in enumerate(module.get("permissions", []), start=1):
             action, name = permission
             yield {
                 "module_code": module["code"],
                 "module_name": module["name"],
-                "module_description": module["description"],
+                "module_description": module.get("description", ""),
                 "module_sort_order": module_index,
                 "permission_code": f"{module['code']}.{action}",
                 "permission_action": action,
