@@ -33,11 +33,21 @@ def sync_permission_catalog(catalog=None):
             },
         )
 
-    # Deactivate permissions/modules removed from catalog so they disappear
-    # from active module listings without deleting historical assignments.
+    # Stale permissions with no assignments get deleted (prevents duplicate
+    # codes from previous catalog versions piling up in the DB). Stale
+    # permissions that ARE referenced by assignments stay, marked inactive,
+    # so history is preserved.
+    AccessPermission.objects.exclude(code__in=active_permission_codes).filter(
+        user_assignments__isnull=True,
+        staff_role_assignments__isnull=True,
+    ).delete()
     AccessPermission.objects.exclude(code__in=active_permission_codes).update(
         is_active=False
     )
+
+    PermissionModule.objects.exclude(code__in=active_module_codes).filter(
+        permissions__isnull=True,
+    ).delete()
     PermissionModule.objects.exclude(code__in=active_module_codes).update(is_active=False)
 
     return {
