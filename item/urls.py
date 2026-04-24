@@ -6,5 +6,4 @@ urlpatterns = [
     path("items/<int:pk>/", ItemGetViewSet.as_view()),
     path("recipes/", RecipeIngredientViewSet.as_view()),
     path("recipes/<int:pk>/", RecipeIngredientDetailViewSet.as_view()),
-    path("recipes/item/<int:item_id>/", RecipeIngredientViewSet.as_view()),
 ]

@@ -3,7 +3,6 @@ from .views import *
 
 urlpatterns = [
     path("login/", LoginViewSet.as_view()),
-    path("add-note/", NoteViewSet.as_view()),
     path("get-note/", NoteViewSet.as_view()),
     path("users/", UserCreateAPIView.as_view()),
     path("users/<uuid:id>/", UserCreateAPIView.as_view()),

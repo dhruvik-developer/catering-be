@@ -444,29 +444,3 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
         )
 
 
-# --------------------    AlertstokeItemViewSet    --------------------
-
-
-class AlertstokeItemViewSet(generics.GenericAPIView):
-    permission_classes = [IsAdminUserOrReadOnly]
-    permission_resource = "stock_alerts"
-
-    def get(self, request):
-        alerts_list = []
-        all_stoke_itmes = StokeItem.objects.all()
-        for stokes in all_stoke_itmes:
-            fallback_unit = default_display_unit(stokes.type)
-            alert_threshold = parse_threshold_to_base(stokes.alert, fallback_unit)
-            if to_decimal(stokes.quantity) <= alert_threshold:
-                alerts_list.append(stokes)
-
-        serializer = StokeItemSerializer(alerts_list, many=True)
-
-        return Response(
-            {
-                "status": True,
-                "message": "StokeItem Quantity Added successfully",
-                "data": serializer.data,
-            },
-            status=status.HTTP_200_OK,
-        )

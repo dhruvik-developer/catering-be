@@ -2,71 +2,10 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
-from .models import Vendor, VendorCategory, IngridientsCategory
-from .serializers import VendorSerializer, CategorySerializer
+from .models import Vendor
+from .serializers import VendorSerializer
 from radha.Utils.permissions import IsAdminUserOrReadOnly
 
-
-
-class CategoryListCreateAPIView(generics.GenericAPIView):
-    serializer_class = CategorySerializer
-    queryset = IngridientsCategory.objects.all()
-    permission_classes = [IsAdminUserOrReadOnly]
-    permission_resource = "vendor_categories"
-
-    def get(self, request):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
-        return Response(
-            {"status": True, "message": "Categories fetched successfully", "data": serializer.data},
-            status=status.HTTP_200_OK,
-        )
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(
-            {"status": True, "message": "Category created successfully", "data": serializer.data},
-            status=status.HTTP_201_CREATED,
-        )
-
-class CategoryDetailAPIView(generics.GenericAPIView):
-    serializer_class = CategorySerializer
-    queryset = IngridientsCategory.objects.all()
-    permission_classes = [IsAdminUserOrReadOnly]
-    permission_resource = "vendor_categories"
-
-    def get_object(self, pk):
-        return self.get_queryset().filter(pk=pk).first()
-
-    def get(self, request, pk):
-        category = self.get_object(pk)
-        if not category:
-            return Response({"status": False, "message": "Category not found"}, status=404)
-
-        serializer = self.get_serializer(category)
-        return Response({"status": True, "data": serializer.data})
-
-    def put(self, request, pk):
-        category = self.get_object(pk)
-        if not category:
-            return Response({"status": False, "message": "Category not found"}, status=404)
-
-        serializer = self.get_serializer(category, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response({"status": True, "message": "Category updated", "data": serializer.data})
-
-    def delete(self, request, pk):
-        category = self.get_object(pk)
-        if not category:
-            return Response({"status": False, "message": "Category not found"}, status=404)
-
-        category.delete()
-        return Response({"status": True, "message": "Category deleted"})
-        
 
 class VendorListCreateAPIView(generics.GenericAPIView):
     serializer_class = VendorSerializer

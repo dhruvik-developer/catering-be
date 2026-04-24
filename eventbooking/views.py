@@ -235,7 +235,7 @@ def calculate_ingredients_required(session_obj):
         if item.name not in final_ingredients:
             key = item.name.strip().lower()
             stock_info = common_stock_map.get(key, {})
-            
+
             vendor_obj = ingredient_vendor_assignments.get(key)
             vendor_info = {
                 "id": vendor_obj.id,
@@ -252,6 +252,48 @@ def calculate_ingredients_required(session_obj):
             }
             if vendor_info:
                 final_ingredients[item.name]["vendor"] = vendor_info
+
+    # Merge in order-local ingredients — entries the user added manually from
+    # the View Ingredient page for dishes that have no global recipe. Stored on
+    # session.order_local_ingredients; surfaced here so the frontend sees them
+    # in the same `ingredients_required` shape it already renders.
+    order_local = session_obj.order_local_ingredients or {}
+    if isinstance(order_local, dict):
+        for name, entry in order_local.items():
+            if not name:
+                continue
+            quantity = ""
+            category = ""
+            for_item = ""
+            if isinstance(entry, dict):
+                quantity = entry.get("quantity", "") or ""
+                category = entry.get("category", "") or ""
+                for_item = entry.get("for_item", "") or ""
+            elif isinstance(entry, str):
+                quantity = entry
+
+            if not category:
+                category = category_map.get(name.strip().lower(), "") or ""
+
+            stock_info = stock_map.get(name.strip().lower()) or {}
+
+            # Avoid clobbering a global-recipe entry if the user happened to
+            # pick the same name. The frontend already namespaces with
+            # "(for <Dish>)" when it detects a collision, so this is a safety
+            # net for edge cases.
+            display_name = name
+            if display_name in final_ingredients and for_item:
+                display_name = f"{name} (for {for_item})"
+
+            final_ingredients[display_name] = {
+                "quantity": str(quantity),
+                "category": category,
+                "available_stock": stock_info.get("quantity", "0"),
+                "stock_type": stock_info.get("type", ""),
+                "used_in": [for_item] if for_item else [],
+                "source": "order_local",
+                "for_item": for_item,
+            }
 
     return final_ingredients, outsourced_items
 
@@ -531,40 +573,6 @@ class EventBookingGetViewSet(generics.GenericAPIView):
             )
 
 
-# --------------------    StatusChangeEventBookingViewSet    --------------------
-
-
-class StatusChangeEventBookingViewSet(generics.GenericAPIView):
-    serializer_class = EventBookingSerializer
-    permission_classes = [IsOwnerOrAdmin]
-    permission_resource = "event_bookings"
-    permission_action = "change_status"
-
-    def post(self, request, pk=None):
-        try:
-            queryset = EventBooking.objects.get(pk=pk)
-            # The status change logic is mostly for the main booking status
-            queryset.status = request.data.get("status")
-            queryset.save()
-            return Response(
-                {
-                    "status": True,
-                    "message": "EventBooking status changed",
-                    "data": {},
-                },
-                status=status.HTTP_200_OK,
-            )
-        except EventBooking.DoesNotExist:
-            return Response(
-                {
-                    "status": False,
-                    "message": "EventBooking not found",
-                    "data": {},
-                },
-                status=status.HTTP_200_OK,
-            )
-
-
 # --------------------    PendingEventBookingViewSet    --------------------
 
 
@@ -595,79 +603,8 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
         )
 
 
-class GetAllEvent(generics.GenericAPIView):
-    permission_classes = [IsAdminUserOrReadOnly]
-    permission_resource = "event_booking_reports"
-
-    def get(self, request):
-        EventBooking.cancel_expired_pending_bookings()
-        queryset = (
-            EventBooking.objects.prefetch_related(
-                "sessions__staff_assignments__staff__role",
-                "sessions__staff_assignments__role_at_event",
-                "sessions__ground_requirements__ground_item__category",
-            )
-            .all()
-            .order_by("-date")
-        )
-        serializer = EventBookingSerializer(queryset, many=True)
-        return Response(
-            {
-                "status": True,
-                "message": "EventBooking list",
-                "data": serializer.data,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
-class SessionIngredientsViewSet(generics.GenericAPIView):
-    permission_classes = [IsAdminUserOrReadOnly]
-    permission_resource = "session_ingredients"
-
-    def get(self, request):
-        session_id = _session_id_from_query(request)
-        if not session_id:
-            return Response(
-                {
-                    "status": False,
-                    "message": "session_id is required",
-                    "data": {},
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        session = EventSession.objects.select_related("booking").filter(pk=session_id).first()
-        if not session:
-            return Response(
-                {
-                    "status": False,
-                    "message": "Session not found",
-                    "data": {},
-                },
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        final_ingredients, outsourced_items = calculate_ingredients_required(session)
-        return Response(
-            {
-                "status": True,
-                "message": "Session ingredients retrieved successfully",
-                "data": {
-                    "session_id": session.id,
-                    "booking_id": session.booking_id,
-                    "event_date": session.formatted_event_date,
-                    "event_time": session.event_time,
-                    "ingredients_required": final_ingredients,
-                    "outsourced_items": outsourced_items,
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
 from .serializers import EventItemConfigSerializer, IngredientVendorAssignmentSerializer
-from .models import EventItemConfig, EventSession, IngredientVendorAssignment
+from .models import EventItemConfig, IngredientVendorAssignment
 
 class EventItemConfigViewSet(generics.ListCreateAPIView):
     queryset = EventItemConfig.objects.all()
