@@ -332,7 +332,8 @@ class EventBookingViewSet(generics.GenericAPIView):
 
         serializer = EventBookingSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            created_by = request.user if request.user.is_authenticated else None
+            serializer.save(created_by=created_by)
             return Response(
                 {
                     "status": True,

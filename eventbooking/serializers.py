@@ -161,6 +161,9 @@ class EventBookingSerializer(serializers.ModelSerializer):
         format="%d-%m-%Y", read_only=True  # Format for response
     )
     sessions = EventSessionSerializer(many=True, required=False)
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
 
     class Meta:
         model = EventBooking
@@ -176,7 +179,10 @@ class EventBookingSerializer(serializers.ModelSerializer):
             "description",
             "rule",
             "sessions",
+            "created_by",
+            "created_by_username",
         ]
+        read_only_fields = ["created_by", "created_by_username"]
 
     def create(self, validated_data):
         sessions_data = validated_data.pop("sessions", [])
