@@ -164,13 +164,6 @@ All routes are under `/api/`.
 - `GET /recipes/item/<int:item_id>/`
 
 ### Ingredients (`ListOfIngridients`)
-
-Legacy + canonical endpoints are both available:
-
-- `GET|POST /ingridients-categories/`
-- `GET|PUT|DELETE /ingridients-categories/<int:pk>/`
-- `GET|POST /ingridients-item/`
-- `GET|PUT|DELETE /ingridients-item/<int:pk>/`
 - `GET|POST /ingredients-categories/`
 - `GET|PUT|DELETE /ingredients-categories/<int:pk>/`
 - `GET|POST /ingredients-items/`
