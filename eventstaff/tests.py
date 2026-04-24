@@ -106,7 +106,9 @@ class StaffAccessTests(TestCase):
         response = self.client.get("/api/staff/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        self.assertTrue(response.data["status"])
+        self.assertEqual(response.data["data"]["count"], 1)
+        self.assertEqual(len(response.data["data"]["results"]), 1)
 
     def test_staff_public_registration_route_is_disabled(self):
         response = self.client.post(

@@ -22,7 +22,13 @@ class GroundCategoryViewSet(generics.GenericAPIView):
             .all()
             .order_by("name")
         )
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = self.serializer_class(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Ground category list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -153,7 +159,13 @@ class GroundItemViewSet(generics.GenericAPIView):
         if is_active is not None:
             queryset = queryset.filter(is_active=(is_active.lower() == "true"))
 
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = self.serializer_class(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Ground item list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {"status": True, "message": "Ground item list", "data": serializer.data},
             status=status.HTTP_200_OK,

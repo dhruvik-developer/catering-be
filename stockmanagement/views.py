@@ -37,7 +37,7 @@ class StokeCategoryViewSet(generics.GenericAPIView):
                     "message": "Category already exists",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_409_CONFLICT,
             )
         serializer = StokeCategorySerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -48,7 +48,7 @@ class StokeCategoryViewSet(generics.GenericAPIView):
                     "message": "Category created successfully",
                     "data": serializer.data,
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_201_CREATED,
             )
         return Response(
             {
@@ -56,12 +56,18 @@ class StokeCategoryViewSet(generics.GenericAPIView):
                 "message": "Something went wrong",
                 "data": {},
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     def get(self, request):
-        queryset = StokeCategory.objects.all()
+        queryset = StokeCategory.objects.all().order_by("name", "id")
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = StokeCategorySerializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Category list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -99,7 +105,7 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
                     "message": "Something went wrong",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except StokeCategory.DoesNotExist:
             return Response(
@@ -108,7 +114,7 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
                     "message": "Category not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def delete(self, request, pk=None):
@@ -130,7 +136,7 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
                     "message": "Category not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def get(self, request, pk=None):
@@ -152,7 +158,7 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
                     "message": "Category not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
 
@@ -165,8 +171,14 @@ class StokeItemViewSet(generics.GenericAPIView):
     permission_resource = "stock_items"
 
     def get(self, request):
-        queryset = StokeItem.objects.all()
+        queryset = StokeItem.objects.select_related("category", "created_by").all()
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = StokeItemSerializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "StokeItem list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -184,18 +196,20 @@ class StokeItemViewSet(generics.GenericAPIView):
                     "message": "StokeItem already exists",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_409_CONFLICT,
             )
         serializer = StokeItemSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            serializer.save(
+                created_by=request.user if request.user.is_authenticated else None
+            )
             return Response(
                 {
                     "status": True,
                     "message": "StokeItem created successfully",
                     "data": serializer.data,
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_201_CREATED,
             )
         return Response(
             {
@@ -203,7 +217,7 @@ class StokeItemViewSet(generics.GenericAPIView):
                 "message": "Something went wrong",
                 "data": {},
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -231,7 +245,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
                     "message": "StokeItem not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def put(self, request, pk=None):
@@ -275,7 +289,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
                     "message": "Something went wrong",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except StokeItem.DoesNotExist:
             return Response(
@@ -284,7 +298,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
                     "message": "StokeItem not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def delete(self, request, pk=None):
@@ -306,7 +320,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
                     "message": "StokeItem not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
 
@@ -314,7 +328,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
 
 
 class AddRemoveStokeItemViewSet(generics.GenericAPIView):
-    permission_classes = [IsOwnerOrAdmin]
+    permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "stock_adjustments"
 
     def post(self, request):
@@ -327,7 +341,7 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
                     "message": "StokeItem is not exists",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
         quantity = request.data.get("quantity")
         nte_price = request.data.get("nte_price")
@@ -393,7 +407,7 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
                     "message": "StokeItem is not exists",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
         quantity = request.data.get("quantity")
         total_price = request.data.get("total_price", None)
@@ -442,5 +456,3 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
             },
             status=status.HTTP_200_OK,
         )
-
-

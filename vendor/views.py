@@ -9,7 +9,11 @@ from radha.Utils.permissions import IsAdminUserOrReadOnly
 
 class VendorListCreateAPIView(generics.GenericAPIView):
     serializer_class = VendorSerializer
-    queryset = Vendor.objects.select_related("user_account").prefetch_related("vendor_categories__category")
+    queryset = (
+        Vendor.objects.select_related("user_account")
+        .prefetch_related("vendor_categories__category")
+        .order_by("name", "id")
+    )
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "vendors"
 
@@ -25,7 +29,14 @@ class VendorListCreateAPIView(generics.GenericAPIView):
         return queryset
 
     def get(self, request):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
+        serializer = self.get_serializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Vendors fetched successfully"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {"status": True, "message": "Vendors fetched successfully", "data": serializer.data}
         )

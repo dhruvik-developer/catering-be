@@ -7,6 +7,10 @@ from radha.Utils.unit_normalizer import (
 )
 
 class StokeItemSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
+
     class Meta:
         model = StokeItem
         fields = [
@@ -18,7 +22,10 @@ class StokeItemSerializer(serializers.ModelSerializer):
             "type",
             "nte_price",
             "total_price",
+            "created_by",
+            "created_by_username",
         ]
+        read_only_fields = ["created_by", "created_by_username"]
 
     def validate(self, attrs):
         quantity = attrs.get("quantity", getattr(self.instance, "quantity", 0))

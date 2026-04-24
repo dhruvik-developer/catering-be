@@ -15,10 +15,14 @@ class ExpenseSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     entity_name = serializers.CharField(source='entity.name', read_only=True)
     entity_type = serializers.CharField(source='entity.get_entity_type_display', read_only=True)
+    created_by_username = serializers.CharField(
+        source='created_by.username', read_only=True
+    )
 
     class Meta:
         model = Expense
         fields = '__all__'
+        read_only_fields = ('created_by', 'created_by_username')
 
     def validate_amount(self, value):
         if value <= 0:

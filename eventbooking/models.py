@@ -56,6 +56,10 @@ class EventBooking(models.Model):
 
     class Meta:
         ordering = ["-date"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["-date"]),
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.date}"
@@ -165,4 +169,3 @@ class IngredientVendorAssignment(models.Model):
 
     def __str__(self):
         return f"{self.ingredient.name} -> {self.vendor.name} ({self.source_type})"
-

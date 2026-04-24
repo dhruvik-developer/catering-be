@@ -86,7 +86,7 @@ class NoteViewSet(generics.GenericAPIView):
                 "message": "Something went wrong",
                 "data": {},
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     def put(self, request, pk):
@@ -99,7 +99,7 @@ class NoteViewSet(generics.GenericAPIView):
                     "message": "Note not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
         serializer = NoteSerializer(get_note, data=request.data, partial=True)
@@ -121,12 +121,18 @@ class NoteViewSet(generics.GenericAPIView):
                 "message": "Something went wrong",
                 "data": {},
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     def get(self, request):
-        queryset = Note.objects.all()
+        queryset = Note.objects.all().order_by("title", "id")
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = NoteSerializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Note list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -139,7 +145,7 @@ class NoteViewSet(generics.GenericAPIView):
 
 class UserCreateAPIView(generics.GenericAPIView):
     serializer_class = UserCreateSerializer
-    queryset = UserModel.objects.all()
+    queryset = UserModel.objects.all().order_by("username")
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "users"
 
@@ -167,12 +173,19 @@ class UserCreateAPIView(generics.GenericAPIView):
         for field, errors in serializer.errors.items():
             error_messages.extend(errors)
         return Response(
-            {"status": False, "message": error_messages[0]}, status=status.HTTP_200_OK
+            {"status": False, "message": error_messages[0]},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     def get(self, request):
         users = self.get_queryset()
+        page = self.paginate_queryset(users)
+        users = page if page is not None else users
         serializer = self.get_serializer(users, many=True)
+        if page is not None:
+            self.paginator.message = "User list fetched successfully."
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -216,7 +229,7 @@ class ChangePasswordAPIView(generics.GenericAPIView):
             except UserModel.DoesNotExist:
                 return Response(
                     {"status": False, "message": "User not found."},
-                    status=status.HTTP_200_OK,
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
             new_password = serializer.validated_data["new_password"]
@@ -239,7 +252,7 @@ class ChangePasswordAPIView(generics.GenericAPIView):
 
 class BusinessProfileAPIView(generics.GenericAPIView):
     serializer_class = BusinessProfileSerializer
-    queryset = BusinessProfile.objects.all()
+    queryset = BusinessProfile.objects.all().order_by("-created_at", "id")
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "business_profiles"
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -252,7 +265,13 @@ class BusinessProfileAPIView(generics.GenericAPIView):
     def get(self, request):
         # If you want to get all profiles:
         queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = self.get_serializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Business profiles fetched successfully."
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -282,7 +301,8 @@ class BusinessProfileAPIView(generics.GenericAPIView):
         for field, errors in serializer.errors.items():
             error_messages.extend(errors)
         return Response(
-            {"status": False, "message": error_messages[0]}, status=status.HTTP_200_OK
+            {"status": False, "message": error_messages[0]},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -309,7 +329,7 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
         if not profile:
             return Response(
                 {"status": False, "message": "Business profile not found.", "data": {}},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
         serializer = self.get_serializer(profile)
         return Response(
@@ -326,7 +346,7 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
         if not profile:
             return Response(
                 {"status": False, "message": "Business profile not found.", "data": {}},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
         serializer = self.get_serializer(profile, data=request.data, partial=True)
@@ -345,5 +365,6 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
         for field, errors in serializer.errors.items():
             error_messages.extend(errors)
         return Response(
-            {"status": False, "message": error_messages[0]}, status=status.HTTP_200_OK
+            {"status": False, "message": error_messages[0]},
+            status=status.HTTP_400_BAD_REQUEST,
         )

@@ -20,7 +20,12 @@ class ExpenseView(generics.GenericAPIView):
 
     def get(self, request):
         queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = self.get_serializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Expense list retrieved successfully"
+            return self.get_paginated_response(serializer.data)
 
         return Response(
             {
@@ -35,7 +40,9 @@ class ExpenseView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
 
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(
+                created_by=request.user if request.user.is_authenticated else None
+            )
             return Response(
                 {
                     "status": True,
@@ -121,7 +128,12 @@ class CategoryView(generics.GenericAPIView):
 
     def get(self, request):
         queryset = Category.objects.all().order_by("name")
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = self.serializer_class(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Category list retrieved successfully"
+            return self.get_paginated_response(serializer.data)
 
         return Response(
             {

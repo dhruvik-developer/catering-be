@@ -22,7 +22,7 @@ class CategoryViewSet(generics.GenericAPIView):
                     "message": "Category already exists",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_409_CONFLICT,
             )
         last_category = Category.objects.order_by('-positions').first()
         last_positions = last_category.positions if last_category else 0
@@ -37,7 +37,7 @@ class CategoryViewSet(generics.GenericAPIView):
                     "message": "Category created successfully",
                     "data": serializer.data,
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_201_CREATED,
             )
         return Response(
             {
@@ -45,12 +45,18 @@ class CategoryViewSet(generics.GenericAPIView):
                 "message": "Something went wrong",
                 "data": {},
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     def get(self, request):
-        queryset = Category.objects.all()
+        queryset = Category.objects.all().order_by("positions", "id")
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = CategorySerializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Category list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -86,7 +92,7 @@ class CategoryGetViewSet(generics.GenericAPIView):
                     "message": "Something went wrong",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except Category.DoesNotExist:
             return Response(
@@ -95,7 +101,7 @@ class CategoryGetViewSet(generics.GenericAPIView):
                     "message": "Category not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def delete(self, request, pk=None):
@@ -143,7 +149,7 @@ class CategoryGetViewSet(generics.GenericAPIView):
                     "message": "Category not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
 
@@ -166,7 +172,7 @@ class CategoryPositionsChangesViewSet(generics.GenericAPIView):
                         "status": False,
                         "message": "No changes needed, position is the same.",
                     },
-                    status=200,
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # If moving up (better position, smaller number)
@@ -196,4 +202,4 @@ class CategoryPositionsChangesViewSet(generics.GenericAPIView):
             )
 
         except Exception as e:
-            return Response({"status": True, "message": str(e)}, status=500)
+            return Response({"status": False, "message": str(e)}, status=500)

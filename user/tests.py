@@ -99,4 +99,4 @@ class UserCreationAccessTests(TestCase):
         response = self.client.get("/api/users/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["message"], "User List Fatch successfully.")
+        self.assertEqual(response.data["message"], "User list fetched successfully.")

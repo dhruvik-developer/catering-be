@@ -40,8 +40,15 @@ class ItemViewSet(generics.GenericAPIView):
             Item.objects.select_related("category")
             .prefetch_related("recipe_ingredients__ingredient__category")
             .all()
+            .order_by("name", "id")
         )
+        page = self.paginate_queryset(items)
+        items = page if page is not None else items
         serializer = ItemSerializer(items, many=True)
+        if page is not None:
+            self.paginator.message = "Item list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {"status": True, "message": "Item list", "data": serializer.data},
             status=status.HTTP_200_OK,
@@ -112,12 +119,22 @@ class RecipeIngredientViewSet(generics.GenericAPIView):
 
     def get(self, request, item_id=None):
         item_id = item_id or request.query_params.get("item_id")
-        queryset = RecipeIngredient.objects.select_related("item", "ingredient__category").all()
+        queryset = (
+            RecipeIngredient.objects.select_related("item", "ingredient__category")
+            .all()
+            .order_by("item__name", "ingredient__name", "id")
+        )
 
         if item_id:
             queryset = queryset.filter(item_id=item_id)
 
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = RecipeIngredientSerializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Recipe list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {"status": True, "message": "Recipe list", "data": serializer.data},
             status=status.HTTP_200_OK,
@@ -170,5 +187,3 @@ class RecipeIngredientDetailViewSet(generics.GenericAPIView):
             return Response({"status": True, "message": "Recipe deleted"}, status=status.HTTP_204_NO_CONTENT)
         except RecipeIngredient.DoesNotExist:
             return Response({"status": False, "message": "Recipe not found"}, status=status.HTTP_404_NOT_FOUND)
-
-

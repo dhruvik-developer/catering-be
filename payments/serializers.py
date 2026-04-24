@@ -9,6 +9,9 @@ class TransactionHistorySerializer(serializers.ModelSerializer):
         input_formats=["%d-%m-%Y"],
         format="%d-%m-%Y",
     )
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
 
     class Meta:
         model = TransactionHistory
@@ -21,8 +24,10 @@ class TransactionHistorySerializer(serializers.ModelSerializer):
             "transaction_type",
             "note",
             "created_at",
+            "created_by",
+            "created_by_username",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "created_by", "created_by_username"]
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -32,6 +37,9 @@ class PaymentSerializer(serializers.ModelSerializer):
     )
     formatted_event_date = serializers.ReadOnlyField()
     transactions = TransactionHistorySerializer(many=True, read_only=True)
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
 
     class Meta:
         model = Payment
@@ -50,8 +58,18 @@ class PaymentSerializer(serializers.ModelSerializer):
             "formatted_event_date",
             "booking",
             "transactions",
+            "created_by",
+            "created_by_username",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ["bill_no", "created_at", "updated_at"]
+        read_only_fields = [
+            "bill_no",
+            "created_by",
+            "created_by_username",
+            "created_at",
+            "updated_at",
+        ]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -67,6 +85,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         decimal_fields = [
             "total_amount",
             "advance_amount",
+            "total_extra_amount",
             "pending_amount",
             "transaction_amount",
             "settlement_amount",
@@ -76,7 +95,8 @@ class PaymentSerializer(serializers.ModelSerializer):
                 data[field] = str(Decimal(data[field]))
 
         # Auto-set payment_status to "Paid" if pending_amount is 0
-        if Decimal(data.get("pending_amount", "0")) == Decimal("0"):
+        pending_amount = data.get("pending_amount")
+        if pending_amount is not None and Decimal(str(pending_amount)) == Decimal("0"):
             data["payment_status"] = "PAID"
 
         return data

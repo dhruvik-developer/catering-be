@@ -487,5 +487,3 @@ Values are wrapped in `Decimal(...)` then converted via `float(...)` then quanti
 - **Settings.py split** — nice but not urgent if single-server deployment.
 
 ---
-
-*This review was generated based on static analysis of the codebase as of 2026-04-24.  Some findings (especially #5 permission claim) should be verified with runtime testing before fixing.*

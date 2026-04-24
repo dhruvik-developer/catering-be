@@ -173,7 +173,7 @@ def calculate_ingredients_required(session_obj):
 
     # Load relational vendor assignments instead of the JSON blob
     ingredient_vendor_assignments = {
-        assign.ingredient.name.strip().lower(): assign.vendor
+        assign.ingredient.name.strip().lower(): assign
         for assign in IngredientVendorAssignment.objects.filter(session=session_obj).select_related("vendor", "ingredient")
     }
 
@@ -190,22 +190,23 @@ def calculate_ingredients_required(session_obj):
         if stock_info is None:
             stock_info = fuzzy_lookup(ingredient, stock_map, cutoff=0.6) or {}
 
-        vendor_obj = ingredient_vendor_assignments.get(ingredient.strip().lower())
-        if not vendor_obj:
+        assignment = ingredient_vendor_assignments.get(ingredient.strip().lower())
+        if not assignment:
             # Fuzzy match keys just in case
             keys = list(ingredient_vendor_assignments.keys())
             close = difflib.get_close_matches(ingredient.strip().lower(), [k.strip().lower() for k in keys], n=1, cutoff=0.6)
             if close:
                 matched_key = keys[[k.strip().lower() for k in keys].index(close[0])]
-                vendor_obj = ingredient_vendor_assignments.get(matched_key)
+                assignment = ingredient_vendor_assignments.get(matched_key)
         
         vendor_info = None
-        if vendor_obj:
+        if assignment:
+            vendor_obj = assignment.vendor
             vendor_info = {
                 "id": vendor_obj.id,
                 "name": vendor_obj.name,
                 "mobile_no": vendor_obj.mobile_no,
-                "source_type": IngredientVendorAssignment.objects.filter(session=session_obj, ingredient__name__iexact=ingredient).first().source_type if IngredientVendorAssignment.objects.filter(session=session_obj, ingredient__name__iexact=ingredient).exists() else "manual"
+                "source_type": assignment.source_type,
             }
 
         final_ingredients[ingredient] = {
@@ -236,11 +237,13 @@ def calculate_ingredients_required(session_obj):
             key = item.name.strip().lower()
             stock_info = common_stock_map.get(key, {})
 
-            vendor_obj = ingredient_vendor_assignments.get(key)
+            assignment = ingredient_vendor_assignments.get(key)
+            vendor_obj = assignment.vendor if assignment else None
             vendor_info = {
                 "id": vendor_obj.id,
                 "name": vendor_obj.name,
                 "mobile_no": vendor_obj.mobile_no,
+                "source_type": assignment.source_type,
             } if vendor_obj else None
 
             final_ingredients[item.name] = {
@@ -340,7 +343,7 @@ class EventBookingViewSet(generics.GenericAPIView):
                     "message": "EventBooking created successfully",
                     "data": serializer.data,
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_201_CREATED,
             )
         return Response(
             {
@@ -348,14 +351,14 @@ class EventBookingViewSet(generics.GenericAPIView):
                 "message": "Something went wrong",
                 "data": {},
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     def get(self, request):
         EventBooking.cancel_expired_pending_bookings()
         requested_session_id = _session_id_from_query(request)
         queryset = (
-            EventBooking.objects.prefetch_related(
+            EventBooking.objects.select_related("created_by").prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -365,7 +368,10 @@ class EventBookingViewSet(generics.GenericAPIView):
         )
         if requested_session_id:
             queryset = queryset.filter(sessions__id=requested_session_id).distinct()
-        for event_booking in queryset:
+        page = self.paginate_queryset(queryset)
+        bookings = page if page is not None else queryset
+
+        for event_booking in bookings:
             changed = False
             for session in event_booking.sessions.all():
                 if session.extra_service_amount == "0" and all(
@@ -391,9 +397,9 @@ class EventBookingViewSet(generics.GenericAPIView):
                 if changed:
                     session.save()
 
-        serializer = EventBookingSerializer(queryset, many=True)
+        serializer = EventBookingSerializer(bookings, many=True)
 
-        for event_data, event_obj in zip(serializer.data, queryset):
+        for event_data, event_obj in zip(serializer.data, bookings):
             if requested_session_id:
                 event_data["sessions"] = [
                     session_data
@@ -409,6 +415,10 @@ class EventBookingViewSet(generics.GenericAPIView):
                 final_ingredients, outsourced_items = calculate_ingredients_required(session_obj)
                 session_data["ingredients_required"] = final_ingredients
                 session_data["outsourced_items"] = outsourced_items
+
+        if page is not None:
+            self.paginator.message = "EventBooking list"
+            return self.get_paginated_response(serializer.data)
 
         return Response(
             {
@@ -484,7 +494,7 @@ class EventBookingGetViewSet(generics.GenericAPIView):
                     "message": "Something went wrong",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except EventBooking.DoesNotExist:
             return Response(
@@ -493,14 +503,14 @@ class EventBookingGetViewSet(generics.GenericAPIView):
                     "message": "EventBooking not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def get(self, request, pk=None):
         EventBooking.cancel_expired_pending_bookings()
         requested_session_id = _session_id_from_query(request)
         try:
-            eventbooking = EventBooking.objects.prefetch_related(
+            eventbooking = EventBooking.objects.select_related("created_by").prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -570,7 +580,7 @@ class EventBookingGetViewSet(generics.GenericAPIView):
                     "message": "EventBooking not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
 
@@ -585,7 +595,7 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
     def get(self, request):
         EventBooking.cancel_expired_pending_bookings()
         queryset = (
-            EventBooking.objects.prefetch_related(
+            EventBooking.objects.select_related("created_by").prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -593,7 +603,13 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
             .filter(status="pending")
             .order_by("-date")
         )
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
         serializer = EventBookingSerializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "EventBooking list"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,

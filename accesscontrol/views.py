@@ -26,7 +26,14 @@ class PermissionModuleListAPIView(generics.GenericAPIView):
     ).distinct()
 
     def get(self, request):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
+        serializer = self.get_serializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Permission modules fetched successfully."
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -58,7 +65,14 @@ class PermissionSubjectListAPIView(generics.GenericAPIView):
         return queryset
 
     def get(self, request):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        queryset = page if page is not None else queryset
+        serializer = self.get_serializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Permission subjects fetched successfully."
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,

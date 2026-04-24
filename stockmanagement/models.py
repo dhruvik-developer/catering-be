@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 class StokeCategory(models.Model):
@@ -26,6 +27,16 @@ class StokeItem(models.Model):
     quantity = models.DecimalField(max_digits=100, decimal_places=0)
     alert = models.CharField(max_length=500)
     type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_stoke_items",
+    )
+
+    class Meta:
+        ordering = ["name"]
 
     def __str__(self):
         return f"{self.name} - {self.quantity} {self.alert}"

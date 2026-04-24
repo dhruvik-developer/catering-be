@@ -18,8 +18,14 @@ class PaymentViewSet(generics.GenericAPIView):
     permission_resource = "payments"
 
     def get(self, request):
-        payments = Payment.objects.all().order_by("-payment_date")
-        serializer = PaymentSerializer(payments, many=True)
+        payments = Payment.objects.select_related("booking", "created_by").all()
+        page = self.paginate_queryset(payments)
+        queryset = page if page is not None else payments
+        serializer = PaymentSerializer(queryset, many=True)
+        if page is not None:
+            self.paginator.message = "Payment list retrieved successfully"
+            return self.get_paginated_response(serializer.data)
+
         return Response(
             {
                 "status": True,
@@ -63,7 +69,7 @@ class PaymentViewSet(generics.GenericAPIView):
                         "message": "Payment already exists and is fully paid for this booking.",
                         "data": {},
                     },
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_409_CONFLICT,
                 )
 
             # Check for partial/unpaid payments for THIS booking
@@ -104,6 +110,9 @@ class PaymentViewSet(generics.GenericAPIView):
                         payment_mode=payment_mode,
                         transaction_type=tx_type,
                         note=note,
+                        created_by=(
+                            request.user if request.user.is_authenticated else None
+                        ),
                     )
 
                 return Response(
@@ -125,7 +134,8 @@ class PaymentViewSet(generics.GenericAPIView):
                 payment = serializer.save(
                     advance_amount=tx_amount,
                     pending_amount=pending_amount,
-                    payment_status=payment_status
+                    payment_status=payment_status,
+                    created_by=request.user if request.user.is_authenticated else None,
                 )
 
                 # Record transaction history if advance was paid on creation
@@ -137,6 +147,9 @@ class PaymentViewSet(generics.GenericAPIView):
                         payment_mode=payment_mode,
                         transaction_type="ADVANCE",
                         note=note,
+                        created_by=(
+                            request.user if request.user.is_authenticated else None
+                        ),
                     )
 
                 return Response(
@@ -145,7 +158,7 @@ class PaymentViewSet(generics.GenericAPIView):
                         "message": "Payment created successfully",
                         "data": PaymentSerializer(payment).data,
                     },
-                    status=status.HTTP_200_OK,
+                    status=status.HTTP_201_CREATED,
                 )
 
         return Response(
@@ -178,7 +191,7 @@ class EditPaymentViewSet(generics.GenericAPIView):
                     "message": "Payment not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def put(self, request, pk=None):
@@ -245,6 +258,9 @@ class EditPaymentViewSet(generics.GenericAPIView):
                         payment_mode=payment_mode,
                         transaction_type=tx_type,
                         note=note,
+                        created_by=(
+                            request.user if request.user.is_authenticated else None
+                        ),
                     )
 
                 return Response(
@@ -261,7 +277,7 @@ class EditPaymentViewSet(generics.GenericAPIView):
                     "message": "Something went wrong",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except Payment.DoesNotExist:
             return Response(
@@ -270,7 +286,7 @@ class EditPaymentViewSet(generics.GenericAPIView):
                     "message": "Payment not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     def delete(self, request, pk=None):
@@ -292,7 +308,7 @@ class EditPaymentViewSet(generics.GenericAPIView):
                     "message": "Payment not found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
 
@@ -319,7 +335,7 @@ class AllTransactionViewSet(generics.GenericAPIView):
                     "message": "No transactions found",
                     "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_404_NOT_FOUND,
             )
 
         zero = Value(Decimal("0"), output_field=DecimalField(max_digits=20, decimal_places=2))
