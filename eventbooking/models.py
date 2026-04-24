@@ -101,6 +101,10 @@ class EventSession(models.Model):
     # Outsourced items
     outsourced_items = models.JSONField(default=list, blank=True)
 
+    # Ingredients added ad-hoc for this specific order (not in global recipes).
+    # Shape: { "Ingredient Name": {"quantity": "28 kg", "category": "Grains", "for_item": "Biryani"} }
+    order_local_ingredients = models.JSONField(default=dict, blank=True)
+
     class Meta:
         ordering = ["event_date", "event_time"]
 

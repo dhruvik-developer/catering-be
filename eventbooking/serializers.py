@@ -60,6 +60,7 @@ class EventSessionSerializer(serializers.ModelSerializer):
     summoned_staff_details = serializers.SerializerMethodField()
     ground_management = serializers.JSONField(required=False, write_only=True)
     outsourced_items = serializers.JSONField(required=False, default=list)
+    order_local_ingredients = serializers.JSONField(required=False, default=dict)
 
     class Meta:
         model = EventSession
@@ -80,6 +81,7 @@ class EventSessionSerializer(serializers.ModelSerializer):
             "summoned_staff_details",
             "assigned_vendors",
             "outsourced_items",
+            "order_local_ingredients",
             "ground_management",
         ]
 
