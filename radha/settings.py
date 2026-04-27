@@ -109,6 +109,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "radha.middleware.ApiNotFoundMiddleware",
+    "radha.middleware.TenantSchemaMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -139,12 +140,57 @@ WSGI_APPLICATION = "radha.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+DB_ENGINE = get_env("DB_ENGINE", "django.db.backends.sqlite3")
+
+if DB_ENGINE == "django.db.backends.sqlite3":
+    DATABASES = {
+        "default": {
+            "ENGINE": DB_ENGINE,
+            "NAME": get_env("SQLITE_NAME", BASE_DIR / "db.sqlite3"),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": DB_ENGINE,
+            "NAME": get_env("DB_NAME", "radha"),
+            "USER": get_env("DB_USER", ""),
+            "PASSWORD": get_env("DB_PASSWORD", ""),
+            "HOST": get_env("DB_HOST", "localhost"),
+            "PORT": get_env("DB_PORT", "5432"),
+            "OPTIONS": {
+                "options": "-c search_path=public",
+            },
+        }
+    }
+
+SAAS_SHARED_APPS = (
+    "admin",
+    "auth",
+    "contenttypes",
+    "sessions",
+    "authtoken",
+    "accesscontrol",
+    "user",
+)
+
+SAAS_TENANT_APPS = (
+    "category",
+    "ListOfIngridients",
+    "item",
+    "vendor",
+    "eventbooking",
+    "payments",
+    "stockmanagement",
+    "Expense",
+    "eventstaff",
+    "groundmanagement",
+)
+
+SAAS_TENANT_SHARED_APP_MODELS = (
+    "user.Note",
+    "user.BusinessProfile",
+)
 
 
 # Password validation
@@ -198,7 +244,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "user.UserModel"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "user.authentication.TenantJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",

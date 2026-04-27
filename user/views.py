@@ -2,18 +2,32 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
-from .models import UserModel, Note, BusinessProfile
+from .models import UserModel, Note, BusinessProfile, SubscriptionPlan, Tenant
 from .serializers import (
     LoginSerializer,
     NoteSerializer,
+    SubscriptionPlanSerializer,
+    TenantSerializer,
+    TenantSummarySerializer,
     UserCreateSerializer,
     ChangePasswordSerializer,
     BusinessProfileSerializer,
 )
 from django.shortcuts import get_object_or_404
 from radha.Utils.permissions import IsAdminUserOrReadOnly, user_has_permission, get_effective_permission_codes
+from user.tenanting import provision_tenant_schema
+
+
+class IsPlatformAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_superuser
+        )
 
 # --------------------    LoginViewSet    --------------------
 
@@ -31,6 +45,16 @@ class LoginViewSet(generics.GenericAPIView):
         password = request.data.get("password")
         user = authenticate(request, username=username, password=password)
         if user:
+            if user.tenant and not user.tenant.has_active_subscription:
+                return Response(
+                    {
+                        "status": False,
+                        "message": "Tenant subscription is not active.",
+                        "data": {},
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             user_type = "admin" if user.is_superuser or user.is_staff else "user"
             if hasattr(user, "staff_profile"):
                 user_type = "staff"
@@ -44,6 +68,11 @@ class LoginViewSet(generics.GenericAPIView):
                 "email": user.email,
                 "user_type": user_type,
                 "permissions": sorted(get_effective_permission_codes(user)),
+                "tenant": (
+                    TenantSummarySerializer(user.tenant).data
+                    if user.tenant_id
+                    else None
+                ),
                 "tokens": user.tokens,
             }
             return Response(
@@ -140,12 +169,26 @@ class NoteViewSet(generics.GenericAPIView):
 class UserCreateAPIView(generics.GenericAPIView):
     serializer_class = UserCreateSerializer
     queryset = UserModel.objects.all()
-    permission_classes = [IsAdminUserOrReadOnly]
+    permission_classes = [IsAuthenticated]
     permission_resource = "users"
 
+    def _can_manage_users(self, user):
+        return bool(
+            user.is_superuser
+            or (user.is_staff and getattr(user, "tenant_id", None))
+        )
+
+    def get_queryset(self):
+        queryset = UserModel.objects.select_related("tenant").all()
+        if self.request.user.is_superuser:
+            return queryset.order_by("username")
+        if self.request.user.is_staff and self.request.user.tenant_id:
+            return queryset.filter(tenant=self.request.user.tenant).order_by("username")
+        return queryset.none()
+
     def post(self, request):
-        if not request.user.is_superuser:
-            raise PermissionDenied("Only admin can create this resource.")
+        if not self._can_manage_users(request.user):
+            raise PermissionDenied("Only platform admin or tenant admin can create this resource.")
 
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
@@ -154,12 +197,7 @@ class UserCreateAPIView(generics.GenericAPIView):
                 {
                     "status": True,
                     "message": "User created successfully",
-                    "data": {
-                        # "id": user.id,
-                        # "username": user.username,
-                        # "email": user.email,
-                        # "tokens": user.tokens
-                    },
+                    "data": self.get_serializer(user).data,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -183,10 +221,240 @@ class UserCreateAPIView(generics.GenericAPIView):
         )
 
     def delete(self, request, id):
-        user = get_object_or_404(UserModel, id=id)
+        user = get_object_or_404(self.get_queryset(), id=id)
         user.delete()
         return Response(
             {"status": True, "message": "User deleted successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SubscriptionPlanListCreateAPIView(generics.GenericAPIView):
+    serializer_class = SubscriptionPlanSerializer
+    queryset = SubscriptionPlan.objects.all()
+    permission_classes = [IsPlatformAdmin]
+
+    def get(self, request):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return Response(
+            {
+                "status": True,
+                "message": "Subscription plans fetched successfully.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            plan = serializer.save()
+            return Response(
+                {
+                    "status": True,
+                    "message": "Subscription plan created successfully.",
+                    "data": self.get_serializer(plan).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        error_messages = []
+        for field, errors in serializer.errors.items():
+            error_messages.extend(errors)
+        return Response(
+            {"status": False, "message": error_messages[0]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class SubscriptionPlanDetailAPIView(generics.GenericAPIView):
+    serializer_class = SubscriptionPlanSerializer
+    queryset = SubscriptionPlan.objects.all()
+    permission_classes = [IsPlatformAdmin]
+
+    def get_object(self, id):
+        return get_object_or_404(SubscriptionPlan, id=id)
+
+    def get(self, request, id):
+        plan = self.get_object(id)
+        return Response(
+            {
+                "status": True,
+                "message": "Subscription plan fetched successfully.",
+                "data": self.get_serializer(plan).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, id):
+        plan = self.get_object(id)
+        serializer = self.get_serializer(plan, data=request.data, partial=True)
+        if serializer.is_valid():
+            plan = serializer.save()
+            return Response(
+                {
+                    "status": True,
+                    "message": "Subscription plan updated successfully.",
+                    "data": self.get_serializer(plan).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        error_messages = []
+        for field, errors in serializer.errors.items():
+            error_messages.extend(errors)
+        return Response(
+            {"status": False, "message": error_messages[0]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class TenantListCreateAPIView(generics.GenericAPIView):
+    serializer_class = TenantSerializer
+    queryset = Tenant.objects.select_related("subscription_plan", "created_by").prefetch_related(
+        "enabled_modules"
+    )
+    permission_classes = [IsPlatformAdmin]
+
+    def get(self, request):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return Response(
+            {
+                "status": True,
+                "message": "Tenants fetched successfully.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                tenant = serializer.save()
+            except Exception as exc:
+                return Response(
+                    {
+                        "status": False,
+                        "message": f"Tenant schema provisioning failed: {exc}",
+                        "data": {},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            return Response(
+                {
+                    "status": True,
+                    "message": "Tenant created successfully.",
+                    "data": self.get_serializer(tenant).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        error_messages = []
+        for field, errors in serializer.errors.items():
+            error_messages.extend(errors)
+        return Response(
+            {"status": False, "message": error_messages[0]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class TenantDetailAPIView(generics.GenericAPIView):
+    serializer_class = TenantSerializer
+    queryset = Tenant.objects.select_related("subscription_plan", "created_by").prefetch_related(
+        "enabled_modules"
+    )
+    permission_classes = [IsPlatformAdmin]
+
+    def get_object(self, id):
+        return get_object_or_404(self.get_queryset(), id=id)
+
+    def get(self, request, id):
+        tenant = self.get_object(id)
+        return Response(
+            {
+                "status": True,
+                "message": "Tenant fetched successfully.",
+                "data": self.get_serializer(tenant).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, id):
+        tenant = self.get_object(id)
+        serializer = self.get_serializer(tenant, data=request.data, partial=True)
+        if serializer.is_valid():
+            tenant = serializer.save()
+            return Response(
+                {
+                    "status": True,
+                    "message": "Tenant updated successfully.",
+                    "data": self.get_serializer(tenant).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        error_messages = []
+        for field, errors in serializer.errors.items():
+            error_messages.extend(errors)
+        return Response(
+            {"status": False, "message": error_messages[0]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class TenantProvisionAPIView(generics.GenericAPIView):
+    queryset = Tenant.objects.all()
+    permission_classes = [IsPlatformAdmin]
+
+    def post(self, request, id):
+        tenant = get_object_or_404(Tenant, id=id)
+        try:
+            provision_tenant_schema(tenant)
+        except Exception as exc:
+            return Response(
+                {
+                    "status": False,
+                    "message": f"Tenant schema provisioning failed: {exc}",
+                    "data": TenantSummarySerializer(tenant).data,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tenant.refresh_from_db()
+        return Response(
+            {
+                "status": True,
+                "message": "Tenant schema provisioned successfully.",
+                "data": TenantSummarySerializer(tenant).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class MyTenantAPIView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TenantSummarySerializer
+
+    def get(self, request):
+        tenant = getattr(request, "tenant", None) or getattr(request.user, "tenant", None)
+        if tenant is None:
+            return Response(
+                {
+                    "status": True,
+                    "message": "No tenant assigned.",
+                    "data": None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "status": True,
+                "message": "Tenant fetched successfully.",
+                "data": self.get_serializer(tenant).data,
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -217,6 +485,15 @@ class ChangePasswordAPIView(generics.GenericAPIView):
                 return Response(
                     {"status": False, "message": "User not found."},
                     status=status.HTTP_200_OK,
+                )
+
+            if request.user.tenant_id and user.tenant_id != request.user.tenant_id:
+                return Response(
+                    {
+                        "status": False,
+                        "message": "You cannot change password for another tenant.",
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
             new_password = serializer.validated_data["new_password"]

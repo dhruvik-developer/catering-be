@@ -51,6 +51,8 @@ class PermissionSubjectSerializer(serializers.ModelSerializer):
     user_type = serializers.SerializerMethodField()
     profile_name = serializers.SerializerMethodField()
     staff_role = serializers.SerializerMethodField()
+    tenant_id = serializers.SerializerMethodField()
+    tenant_name = serializers.SerializerMethodField()
     effective_permissions = serializers.SerializerMethodField()
 
     class Meta:
@@ -62,6 +64,8 @@ class PermissionSubjectSerializer(serializers.ModelSerializer):
             "last_name",
             "email",
             "is_active",
+            "tenant_id",
+            "tenant_name",
             "user_type",
             "profile_name",
             "staff_role",
@@ -88,6 +92,12 @@ class PermissionSubjectSerializer(serializers.ModelSerializer):
         if hasattr(obj, "staff_profile") and obj.staff_profile.role:
             return obj.staff_profile.role.name
         return None
+
+    def get_tenant_id(self, obj):
+        return str(obj.tenant_id) if obj.tenant_id else None
+
+    def get_tenant_name(self, obj):
+        return obj.tenant.name if obj.tenant_id else None
 
     def get_effective_permissions(self, obj):
         return sorted(get_effective_permission_codes(obj))
@@ -131,6 +141,33 @@ class UserPermissionAssignmentWriteSerializer(serializers.Serializer):
                 }
             )
 
+        request = self.context.get("request")
+        tenant = getattr(getattr(request, "user", None), "tenant", None)
+        if tenant:
+            if not tenant.has_active_subscription:
+                raise serializers.ValidationError(
+                    {"tenant": "Tenant subscription is not active."}
+                )
+
+            enabled_modules = set(
+                tenant.enabled_modules.filter(is_active=True).values_list("code", flat=True)
+            )
+            disallowed_codes = set(
+                AccessPermission.objects.filter(code__in=allowed | denied)
+                .exclude(module__code__in=enabled_modules)
+                .values_list("code", flat=True)
+            )
+
+            if disallowed_codes:
+                raise serializers.ValidationError(
+                    {
+                        "permissions": (
+                            "Tenant subscription does not include permissions: "
+                            f"{', '.join(sorted(disallowed_codes))}"
+                        )
+                    }
+                )
+
         return attrs
 
 
@@ -141,11 +178,16 @@ class UserPermissionAssignmentDetailSerializer(serializers.Serializer):
 
 
 def build_user_permission_payload(user):
-    direct_permissions = list(
-        UserPermissionAssignment.objects.filter(user=user)
-        .select_related("permission")
-        .values("permission__code", "is_allowed")
+    assignment_qs = UserPermissionAssignment.objects.filter(user=user).select_related(
+        "permission", "permission__module"
     )
+    if user.tenant_id:
+        enabled_modules = user.tenant.enabled_modules.filter(is_active=True).values_list(
+            "code", flat=True
+        )
+        assignment_qs = assignment_qs.filter(permission__module__code__in=enabled_modules)
+
+    direct_permissions = list(assignment_qs.values("permission__code", "is_allowed"))
 
     return {
         "user": PermissionSubjectSerializer(user).data,

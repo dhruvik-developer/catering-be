@@ -3,6 +3,12 @@ from .views import *
 
 urlpatterns = [
     path("login/", LoginViewSet.as_view()),
+    path("subscription-plans/", SubscriptionPlanListCreateAPIView.as_view()),
+    path("subscription-plans/<uuid:id>/", SubscriptionPlanDetailAPIView.as_view()),
+    path("tenants/", TenantListCreateAPIView.as_view()),
+    path("tenants/<uuid:id>/", TenantDetailAPIView.as_view()),
+    path("tenants/<uuid:id>/provision/", TenantProvisionAPIView.as_view()),
+    path("me/tenant/", MyTenantAPIView.as_view()),
     path("get-note/", NoteViewSet.as_view()),
     path("users/", UserCreateAPIView.as_view()),
     path("users/<uuid:id>/", UserCreateAPIView.as_view()),

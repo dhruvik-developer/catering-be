@@ -6,14 +6,14 @@ It includes user/auth, permissions, bookings, inventory, ingredients, vendors, e
 ## Tech Stack
 
 - Python
-- Django `5.1.4`
+- Django `5.2.13`
 - Django REST Framework `3.15.2`
 - Simple JWT (`djangorestframework-simplejwt`)
 - django-filter
 - django-cors-headers
 - Pillow
 - Gunicorn
-- Database currently configured in code: SQLite (`db.sqlite3`)
+- SQLite for local development, PostgreSQL for SaaS tenant schemas
 
 ## Project Structure
 
@@ -86,7 +86,8 @@ Main variables:
 - `DJANGO_ALLOWED_HOSTS`
 - `CORS_ALLOWED_ORIGINS`
 - `CORS_ALLOW_ALL_ORIGINS`
-- `DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` (template values; DB env block is currently commented in settings)
+- `DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
+- `SQLITE_NAME` (optional local SQLite file path; defaults to `db.sqlite3`)
 - `JWT_SIGNING_KEY`
 
 ### 4. Apply migrations
@@ -127,6 +128,56 @@ API prefix: `/api/`
 Authorization: Bearer <access_token>
 ```
 
+## SaaS / Tenant Mode
+
+The backend now supports platform-owned SaaS accounts:
+
+- Platform superadmin users live in the public schema and manage tenants.
+- Each tenant has a subscription, enabled modules, and a PostgreSQL schema name.
+- Tenant users belong to one tenant. Their JWT requests activate that tenant schema, so normal CRUD queries read/write only that tenant schema.
+- Tenant admins can create tenant users and assign module permissions.
+- SQLite remains usable for local development, but true schema isolation requires PostgreSQL.
+
+For PostgreSQL schema-per-tenant mode, set:
+
+```env
+DB_ENGINE=django.db.backends.postgresql
+DB_NAME=radha
+DB_USER=postgres
+DB_PASSWORD=your-password
+DB_HOST=localhost
+DB_PORT=5432
+```
+
+After migrating public tables and syncing permissions:
+
+```bash
+python manage.py migrate
+python manage.py sync_permissions
+```
+
+Create a tenant and its first tenant admin:
+
+```http
+POST /api/tenants/
+Authorization: Bearer <platform-superadmin-token>
+Content-Type: application/json
+
+{
+  "name": "Radha Catering",
+  "schema_name": "radha",
+  "subscription_status": "active",
+  "enabled_modules": ["categories", "items", "event_bookings", "users"],
+  "admin": {
+    "username": "radha-admin",
+    "email": "admin@radha.example",
+    "password": "admin1234"
+  }
+}
+```
+
+On PostgreSQL this creates schema `radha` and runs tenant migrations there. On SQLite, the tenant is created with `schema_status=skipped` because SQLite has no schemas.
+
 ## API Modules and Endpoints
 
 All routes are under `/api/`.
@@ -137,6 +188,15 @@ All routes are under `/api/`.
 - `GET /access-control/users/`
 - `GET|PUT /access-control/users/<uuid:user_id>/permissions/`
 - `GET /me/permissions/`
+
+### SaaS Admin
+
+- `GET|POST /subscription-plans/`
+- `GET|PUT /subscription-plans/<uuid:id>/`
+- `GET|POST /tenants/`
+- `GET|PUT /tenants/<uuid:id>/`
+- `POST /tenants/<uuid:id>/provision/`
+- `GET /me/tenant/`
 
 ### User
 

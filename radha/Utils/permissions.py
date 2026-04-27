@@ -54,19 +54,44 @@ def get_effective_permission_codes(user, refresh=False):
     if not refresh and hasattr(user, "_effective_permission_codes_cache"):
         return user._effective_permission_codes_cache
 
-    from accesscontrol.models import UserPermissionAssignment
+    from accesscontrol.models import AccessPermission, UserPermissionAssignment
+
+    tenant = getattr(user, "tenant", None)
+    if tenant and not tenant.has_active_subscription:
+        user._effective_permission_codes_cache = set()
+        return set()
+
+    tenant_module_codes = get_tenant_enabled_module_codes(user, refresh=refresh)
+
+    if user.is_staff and tenant:
+        if not tenant_module_codes:
+            user._effective_permission_codes_cache = set()
+            return set()
+
+        effective_codes = set(
+            AccessPermission.objects.filter(
+                is_active=True,
+                module__is_active=True,
+                module__code__in=tenant_module_codes,
+            ).values_list("code", flat=True)
+        )
+        user._effective_permission_codes_cache = effective_codes
+        return effective_codes
 
     allowed_codes = set()
     denied_codes = set()
+    assignments = UserPermissionAssignment.objects.filter(
+        user=user,
+        permission__is_active=True,
+    ).select_related("permission", "permission__module")
 
-    for assignment in (
-        UserPermissionAssignment.objects.filter(
-            user=user,
-            permission__is_active=True,
-        )
-        .select_related("permission")
-        .all()
-    ):
+    if tenant:
+        if not tenant_module_codes:
+            user._effective_permission_codes_cache = set()
+            return set()
+        assignments = assignments.filter(permission__module__code__in=tenant_module_codes)
+
+    for assignment in assignments.all():
         if assignment.is_allowed:
             allowed_codes.add(assignment.permission.code)
         else:
@@ -83,6 +108,48 @@ def user_has_permission(user, permission_code):
     effective_codes = get_effective_permission_codes(user)
     return "*" in effective_codes or permission_code in effective_codes
 
+
+def get_tenant_enabled_module_codes(user, refresh=False):
+    tenant = getattr(user, "tenant", None)
+    if tenant is None:
+        return None
+
+    if not refresh and hasattr(user, "_tenant_enabled_module_codes_cache"):
+        return user._tenant_enabled_module_codes_cache
+
+    module_codes = set(
+        tenant.enabled_modules.filter(is_active=True).values_list("code", flat=True)
+    )
+    user._tenant_enabled_module_codes_cache = module_codes
+    return module_codes
+
+
+def tenant_subscription_allows_access(user):
+    tenant = getattr(user, "tenant", None)
+    return tenant is None or tenant.has_active_subscription
+
+
+def tenant_can_use_permissions(user, permission_codes):
+    tenant = getattr(user, "tenant", None)
+    if tenant is None:
+        return True
+    if not tenant.has_active_subscription:
+        return False
+
+    normalized_codes = normalize_permission_codes(permission_codes)
+    if not normalized_codes:
+        return True
+
+    enabled_modules = get_tenant_enabled_module_codes(user)
+    if not enabled_modules:
+        return False
+
+    return all(
+        "." in code and code.split(".", 1)[0] in enabled_modules
+        for code in normalized_codes
+    )
+
+
 class IsAdminUserOrReadOnly(IsAuthenticated):
     """
     Custom permission class to allow:
@@ -98,15 +165,22 @@ class IsAdminUserOrReadOnly(IsAuthenticated):
         if not is_authenticated:
             return False
 
-        if request.user.is_superuser or request.user.is_staff:
-            return True
-
-        required_codes = get_required_permission_codes(request, view)
-        if required_codes:
-            return all(user_has_permission(request.user, code) for code in required_codes)
+        if not tenant_subscription_allows_access(request.user):
+            return False
 
         if request.method in SAFE_METHODS:
             return True
+
+        required_codes = get_required_permission_codes(request, view)
+
+        if request.user.is_superuser:
+            return True
+
+        if request.user.is_staff:
+            return tenant_can_use_permissions(request.user, required_codes)
+
+        if required_codes:
+            return all(user_has_permission(request.user, code) for code in required_codes)
 
         return False
 
@@ -126,10 +200,17 @@ class IsOwnerOrAdmin(BasePermission):
         if not request.user.is_authenticated:
             return False
 
-        if request.user.is_superuser or request.user.is_staff:
-            return True
+        if not tenant_subscription_allows_access(request.user):
+            return False
 
         required_codes = get_required_permission_codes(request, view)
+
+        if request.user.is_superuser:
+            return True
+
+        if request.user.is_staff:
+            return tenant_can_use_permissions(request.user, required_codes)
+
         if required_codes:
             return all(user_has_permission(request.user, code) for code in required_codes)
 
@@ -141,10 +222,13 @@ class IsOwnerOrAdmin(BasePermission):
             return True
             
         # Allow if admin
-        if request.user.is_superuser or request.user.is_staff:
+        if request.user.is_superuser:
             return True
 
         required_codes = get_required_permission_codes(request, view)
+        if request.user.is_staff:
+            return tenant_can_use_permissions(request.user, required_codes)
+
         if required_codes and all(
             user_has_permission(request.user, code) for code in required_codes
         ):
@@ -152,5 +236,4 @@ class IsOwnerOrAdmin(BasePermission):
             
         # Allow if owner
         return hasattr(obj, 'user') and obj.user == request.user
-
 

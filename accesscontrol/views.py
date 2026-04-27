@@ -20,10 +20,18 @@ UserModel = get_user_model()
 class PermissionModuleListAPIView(generics.GenericAPIView):
     permission_classes = [IsAdminUser]
     serializer_class = PermissionModuleSerializer
-    queryset = PermissionModule.objects.prefetch_related("permissions").filter(
-        is_active=True,
-        permissions__is_active=True,
-    ).distinct()
+
+    def get_queryset(self):
+        queryset = PermissionModule.objects.prefetch_related("permissions").filter(
+            is_active=True,
+            permissions__is_active=True,
+        ).distinct()
+
+        if self.request.user.is_superuser:
+            return queryset
+        if self.request.user.tenant_id:
+            return queryset.filter(tenants=self.request.user.tenant).distinct()
+        return queryset.none()
 
     def get(self, request):
         serializer = self.get_serializer(self.get_queryset(), many=True)
@@ -43,10 +51,15 @@ class PermissionSubjectListAPIView(generics.GenericAPIView):
 
     def get_queryset(self):
         queryset = (
-            UserModel.objects.select_related("staff_profile__role", "vendor_profile")
+            UserModel.objects.select_related("staff_profile__role", "vendor_profile", "tenant")
             .filter(is_superuser=False)
             .order_by("username")
         )
+        if not self.request.user.is_superuser:
+            if not self.request.user.tenant_id:
+                return queryset.none()
+            queryset = queryset.filter(tenant=self.request.user.tenant)
+
         user_type = self.request.query_params.get("user_type")
 
         if user_type == "staff":
@@ -74,10 +87,14 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
     serializer_class = UserPermissionAssignmentWriteSerializer
 
     def get_user(self, user_id):
-        return get_object_or_404(
-            UserModel.objects.select_related("staff_profile__role", "vendor_profile"),
-            id=user_id,
+        queryset = UserModel.objects.select_related(
+            "staff_profile__role",
+            "vendor_profile",
+            "tenant",
         )
+        if not self.request.user.is_superuser:
+            queryset = queryset.filter(tenant=self.request.user.tenant)
+        return get_object_or_404(queryset, id=user_id)
 
     def get(self, request, user_id):
         user = self.get_user(user_id)
@@ -99,11 +116,19 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
         denied_codes = set(serializer.validated_data.get("denied_permissions", []))
         requested_codes = allowed_codes | denied_codes
 
-        user.permission_assignments.all().delete()
-        permissions = {
-            permission.code: permission
-            for permission in AccessPermission.objects.filter(code__in=requested_codes)
-        }
+        assignment_qs = user.permission_assignments.all()
+        permission_qs = AccessPermission.objects.filter(code__in=requested_codes)
+        if self.request.user.tenant_id:
+            enabled_modules = self.request.user.tenant.enabled_modules.filter(
+                is_active=True
+            ).values_list("code", flat=True)
+            assignment_qs = assignment_qs.filter(
+                permission__module__code__in=enabled_modules
+            )
+            permission_qs = permission_qs.filter(module__code__in=enabled_modules)
+
+        assignment_qs.delete()
+        permissions = {permission.code: permission for permission in permission_qs}
 
         for code in allowed_codes:
             user.permission_assignments.create(
@@ -138,6 +163,8 @@ class MyPermissionAPIView(generics.GenericAPIView):
                 "data": {
                     "user_id": str(request.user.id),
                     "username": request.user.username,
+                    "tenant_id": str(request.user.tenant_id) if request.user.tenant_id else None,
+                    "tenant_name": request.user.tenant.name if request.user.tenant_id else None,
                     "permissions": sorted(get_effective_permission_codes(request.user)),
                 },
             },
