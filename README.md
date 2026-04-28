@@ -3,6 +3,10 @@
 Radha Backend is a Django REST API for catering and event operations.  
 It includes user/auth, permissions, bookings, inventory, ingredients, vendors, expenses, payments, event staff, and ground management.
 
+For the current end-to-end project flow, module responsibilities, active API
+routes, admin coverage, and inactive module notes, see
+[`CURRENT_FLOW.md`](CURRENT_FLOW.md).
+
 ## Tech Stack
 
 - Python
@@ -249,7 +253,6 @@ All routes are under `/api/`.
 - `GET|POST /stoke-items/`
 - `GET|PUT|DELETE /stoke-items/<int:pk>/`
 - `POST|PUT /add-stoke-item/`
-- `GET /alert-stoke-item/`
 
 ### Payments
 
@@ -263,9 +266,6 @@ All routes are under `/api/`.
 - `GET|PUT|DELETE /expenses/<int:pk>/`
 - `GET|POST /expenses-categories/`
 - `GET|PUT|DELETE /expenses-categories/<int:pk>/`
-- `GET|POST /entities/`
-- `GET|PUT|DELETE /entities/<int:pk>/`
-- `GET /entities/<int:pk>/summary/`
 
 ### Vendor
 
@@ -321,8 +321,6 @@ Default bind: `127.0.0.1:8006`
 
 ## Important Notes
 
-- Route collision exists on `/api/categories/` and `/api/categories/<int:pk>/` between `category` and `vendor`.
-  `category.urls` is included first in `radha/urls.py`, so vendor category endpoints can be shadowed.
 - `CORS_ALLOW_ALL_ORIGINS` defaults to `True` in settings; tighten this in production.
 - `branchmanagement` is present but not active in installed apps and root URLs.
 - README no longer references a Postman collection file because `radha.postman_collection.json` is not present in this repository.

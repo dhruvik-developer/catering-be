@@ -1,0 +1,112 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{% if form.errors %}{% translate "Error:" %} {% endif %}{% translate "Admin Login" %} | {{ site_title|default:_("Evenmore catering") }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+{{ form.media }}
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} login radha-login-page{% endblock %}
+
+{% block header %}{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div class="radha-login-shell">
+    <div class="radha-login-brand" aria-label="{{ site_header|default:_('Evenmore catering') }}">
+        <div class="radha-login-emblem" aria-hidden="true">
+            <span>E</span>
+        </div>
+        <div class="radha-login-brand__name">{{ site_header|default:_("Evenmore catering") }}</div>
+        <div class="radha-login-brand__meta">{% translate "Operations Portal" %}</div>
+    </div>
+
+    <section class="radha-login-card" aria-labelledby="radha-login-heading">
+        <div class="radha-login-card__head">
+            <h1 id="radha-login-heading">{% translate "Welcome Back" %}</h1>
+            <p>{% translate "Sign in to your admin account" %}</p>
+        </div>
+
+        {% if form.errors and not form.non_field_errors %}
+            <p class="radha-login-alert">
+                {% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+            </p>
+        {% endif %}
+
+        {% if form.non_field_errors %}
+            {% for error in form.non_field_errors %}
+                <p class="radha-login-alert">{{ error }}</p>
+            {% endfor %}
+        {% endif %}
+
+        {% if user.is_authenticated %}
+            <p class="radha-login-alert">
+                {% blocktranslate trimmed %}
+                    You are authenticated as {{ username }}, but are not authorized to access this page.
+                {% endblocktranslate %}
+            </p>
+        {% endif %}
+
+        <form action="{{ app_path }}" method="post" id="login-form" class="radha-login-form">
+            {% csrf_token %}
+
+            <div class="radha-field">
+                {{ form.username.errors }}
+                <label for="{{ form.username.id_for_label }}">{% translate "Username" %}</label>
+                <div class="radha-input-wrap">
+                    <span class="radha-input-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                            <path d="M20 21a8 8 0 0 0-16 0" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                    </span>
+                    {{ form.username }}
+                </div>
+            </div>
+
+            <div class="radha-field">
+                {{ form.password.errors }}
+                <label for="{{ form.password.id_for_label }}">{% translate "Password" %}</label>
+                <div class="radha-input-wrap">
+                    <span class="radha-input-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                            <rect x="4" y="10" width="16" height="10" rx="2" />
+                            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                        </svg>
+                    </span>
+                    {{ form.password }}
+                </div>
+                <input type="hidden" name="next" value="{{ next }}">
+            </div>
+
+            <div class="radha-login-options">
+                <label class="radha-remember">
+                    <input type="checkbox" name="remember_me" value="1">
+                    <span>{% translate "Remember me" %}</span>
+                </label>
+
+                {% url 'admin_password_reset' as password_reset_url %}
+                {% if password_reset_url %}
+                    <a href="{{ password_reset_url }}">{% translate "Forgot password?" %}</a>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="radha-login-submit">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <path d="M10 17l5-5-5-5" />
+                    <path d="M15 12H3" />
+                </svg>
+                <span>{% translate "Sign In" %}</span>
+            </button>
+        </form>
+    </section>
+
+    <p class="radha-login-footnote">{% translate "Secure admin access for Radha operations" %}</p>
+</div>
+{% endblock %}

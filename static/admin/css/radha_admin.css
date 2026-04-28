@@ -1,0 +1,2006 @@
+:root {
+  --radha-page: #f5f8ff;
+  --radha-panel: #ffffff;
+  --radha-panel-soft: #f8fbff;
+  --radha-text: #17233f;
+  --radha-muted: #5b6f9e;
+  --radha-border: #bcd3ff;
+  --radha-border-strong: #8fb3ff;
+  --radha-primary: #287ee8;
+  --radha-primary-strong: #173fb8;
+  --radha-primary-soft: #e8f1ff;
+  --radha-accent: #9853ef;
+  --radha-accent-soft: #f1e7ff;
+  --radha-warning: #a66d06;
+  --radha-danger: #b43d33;
+  --radha-shadow: 0 24px 55px rgba(44, 54, 91, 0.14);
+  --radha-radius: 8px;
+  --radha-sidebar: 310px;
+  --radha-form-label: 220px;
+  --radha-form-field: 780px;
+  --radha-page-gradient: linear-gradient(135deg, #edf5ff 0%, #fff8f0 48%, #f7f1ff 100%);
+  --primary: var(--radha-primary);
+  --secondary: var(--radha-primary-strong);
+  --accent: var(--radha-accent);
+  --primary-fg: #ffffff;
+  --body-fg: var(--radha-text);
+  --body-bg: var(--radha-page);
+  --body-quiet-color: var(--radha-muted);
+  --body-loud-color: var(--radha-text);
+  --header-color: var(--radha-text);
+  --header-branding-color: var(--radha-text);
+  --header-bg: var(--radha-panel);
+  --header-link-color: var(--radha-primary);
+  --breadcrumbs-bg: transparent;
+  --breadcrumbs-fg: var(--radha-muted);
+  --breadcrumbs-link-fg: var(--radha-primary);
+  --link-fg: var(--radha-primary);
+  --link-hover-color: var(--radha-primary-strong);
+  --link-selected-fg: var(--radha-accent);
+  --hairline-color: var(--radha-border);
+  --border-color: var(--radha-border);
+  --error-fg: var(--radha-danger);
+  --button-fg: #ffffff;
+  --button-bg: var(--radha-primary);
+  --button-hover-bg: var(--radha-primary-strong);
+  --default-button-bg: var(--radha-accent);
+  --default-button-hover-bg: #743fd0;
+  --close-button-bg: #6b655d;
+  --close-button-hover-bg: #514c45;
+}
+
+html {
+  background: var(--radha-page-gradient);
+}
+
+html:has(body.radha-login-page) {
+  background: var(--radha-page-gradient);
+}
+
+body.radha-admin {
+  background: var(--radha-page-gradient);
+  background-attachment: fixed;
+  color: var(--radha-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.radha-admin a:link,
+.radha-admin a:visited {
+  color: var(--radha-primary);
+}
+
+.radha-admin a:hover,
+.radha-admin a:focus {
+  color: var(--radha-primary-strong);
+}
+
+.radha-admin #container {
+  min-height: 100vh;
+}
+
+.radha-admin #header {
+  align-items: center;
+  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid rgba(188, 211, 255, 0.78);
+  box-shadow: 0 14px 36px rgba(44, 54, 91, 0.08);
+  box-sizing: border-box;
+  color: var(--radha-text);
+  display: flex;
+  gap: 22px;
+  min-height: 82px;
+  padding: 14px clamp(18px, 3vw, 34px);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.radha-admin #branding {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.radha-brand {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.radha-brand__mark {
+  align-items: center;
+  background: linear-gradient(135deg, #1b8f83 0%, #4f7dff 62%, #9957f5 100%);
+  border-radius: 50%;
+  box-shadow: 0 14px 30px rgba(68, 93, 205, 0.22);
+  color: #ffffff !important;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 21px;
+  font-weight: 800;
+  height: 48px;
+  justify-content: center;
+  text-decoration: none;
+  width: 48px;
+}
+
+.radha-brand__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.radha-brand__name {
+  color: #12306b !important;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.1;
+  overflow: hidden;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radha-brand__meta {
+  color: #5577ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.radha-admin #user-tools {
+  align-items: center;
+  color: var(--radha-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 8px 10px;
+  justify-content: flex-end;
+  letter-spacing: 0;
+  margin-left: auto;
+  padding: 0;
+  text-transform: none;
+}
+
+.radha-admin #user-tools .radha-user-label {
+  color: #5b76ff;
+  font-weight: 700;
+}
+
+.radha-admin #user-tools strong {
+  color: #12306b;
+  font-weight: 850;
+}
+
+.radha-admin #logout-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.radha-admin #user-tools a,
+.radha-admin #user-tools button {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  color: var(--radha-primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 38px;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.radha-admin #user-tools .theme-toggle {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  padding: 0;
+  width: 38px;
+}
+
+.radha-admin #user-tools .theme-toggle svg {
+  height: 18px;
+  width: 18px;
+}
+
+.radha-admin #user-tools a:hover,
+.radha-admin #user-tools button:hover {
+  background: var(--radha-primary-soft);
+  border-color: rgba(79, 149, 255, 0.36);
+}
+
+.radha-admin .radha-sidebar-toggle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  display: none;
+  height: 42px;
+  justify-content: center;
+  padding: 0;
+  width: 42px;
+}
+
+.radha-sidebar-toggle span {
+  background: var(--radha-text);
+  border-radius: 999px;
+  display: block;
+  height: 2px;
+  margin: 3px 0;
+  width: 18px;
+}
+
+.radha-admin .main {
+  display: grid;
+  grid-template-columns: var(--radha-sidebar) minmax(0, 1fr);
+  gap: 24px;
+  margin: 0;
+  padding: 24px clamp(18px, 3vw, 34px) 0;
+}
+
+.radha-admin .toggle-nav-sidebar {
+  display: none !important;
+}
+
+.radha-admin #nav-sidebar {
+  align-self: start;
+  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(188, 211, 255, 0.86);
+  border-radius: var(--radha-radius);
+  box-shadow: 0 24px 55px rgba(44, 54, 91, 0.12);
+  box-sizing: border-box;
+  height: calc(100vh - 130px);
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 14px;
+  position: sticky;
+  top: 106px;
+  width: var(--radha-sidebar);
+}
+
+.radha-admin #nav-sidebar::before {
+  color: #23459c;
+  content: "Navigation";
+  display: block;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.2;
+  margin: 2px 4px 12px;
+}
+
+.radha-admin #nav-sidebar .module {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  margin: 0 0 16px;
+}
+
+.radha-admin #nav-sidebar .module caption,
+.radha-admin #nav-sidebar .module h2 {
+  background: transparent;
+  border: 0;
+  color: #5577ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin: 14px 8px 8px;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.radha-admin #nav-sidebar .module table {
+  border-collapse: separate;
+  border-spacing: 0 5px;
+  width: 100%;
+}
+
+.radha-admin #nav-sidebar tr {
+  border-radius: var(--radha-radius);
+}
+
+.radha-admin #nav-sidebar th,
+.radha-admin #nav-sidebar td {
+  border-bottom: 0;
+  padding: 0;
+}
+
+.radha-admin #nav-sidebar th a,
+.radha-admin #nav-sidebar td a {
+  border-radius: var(--radha-radius);
+  color: var(--radha-text);
+  display: block;
+  font-weight: 700;
+  line-height: 1.25;
+  min-height: 18px;
+  overflow-wrap: anywhere;
+  padding: 10px 11px;
+  text-decoration: none;
+}
+
+.radha-admin #nav-sidebar td a {
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(188, 211, 255, 0.52);
+  color: var(--radha-primary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.radha-admin #nav-sidebar tr:hover th a,
+.radha-admin #nav-sidebar tr:hover td a {
+  background: var(--radha-primary-soft);
+}
+
+.radha-admin #nav-sidebar tr.current-model th a,
+.radha-admin #nav-sidebar tr.current-model td a {
+  background: linear-gradient(90deg, #287ee8 0%, #1b8f83 52%, #9853ef 100%);
+  color: #ffffff;
+}
+
+.radha-admin #nav-sidebar tr.current-app th a {
+  color: var(--radha-primary);
+}
+
+.radha-admin #nav-filter {
+  background: #f8fbff;
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-sizing: border-box;
+  color: var(--radha-text);
+  height: 42px;
+  margin: 0 0 18px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.radha-admin #nav-filter:focus {
+  border-color: var(--radha-primary);
+  box-shadow: 0 0 0 3px rgba(79, 149, 255, 0.16);
+  outline: none;
+}
+
+.radha-admin.dashboard #container {
+  background: var(--radha-page-gradient);
+  min-height: 100vh;
+}
+
+.radha-admin .content {
+  box-sizing: border-box;
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 0 42px;
+}
+
+.radha-admin #content {
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.radha-admin #content h1 {
+  color: var(--radha-text);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 1.12;
+  margin: 0 0 18px;
+}
+
+.radha-admin.change-form #content,
+.radha-admin.delete-confirmation #content {
+  max-width: 1360px;
+  width: 100%;
+}
+
+.radha-admin.change-form #content-main {
+  min-width: 0;
+  width: 100%;
+}
+
+.radha-admin.change-form form > div {
+  display: grid;
+  gap: 18px;
+}
+
+.radha-admin.dashboard #content {
+  display: grid;
+  gap: 22px 28px;
+  grid-template-columns: minmax(0, 740px) minmax(260px, 340px);
+  max-width: 1240px;
+  width: 100%;
+}
+
+.radha-admin.dashboard #content h1 {
+  color: #23459c;
+  font-size: clamp(28px, 3vw, 42px);
+  margin: 0;
+}
+
+.radha-dashboard-hero {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.84)),
+    radial-gradient(circle at right top, rgba(152, 83, 239, 0.16), transparent 24rem);
+  border: 1px solid rgba(188, 211, 255, 0.92);
+  border-radius: var(--radha-radius);
+  box-shadow: var(--radha-shadow);
+  box-sizing: border-box;
+  display: flex;
+  gap: 24px;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  min-height: 164px;
+  overflow: hidden;
+  padding: clamp(22px, 3vw, 34px);
+  position: relative;
+}
+
+.radha-dashboard-hero::before {
+  background: linear-gradient(135deg, #1b8f83 0%, #4f7dff 62%, #9957f5 100%);
+  bottom: 0;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 6px;
+}
+
+.radha-dashboard-hero__copy {
+  min-width: 0;
+}
+
+.radha-dashboard-kicker {
+  color: #5577ff;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.radha-dashboard-hero p {
+  color: #5b76ff;
+  font-size: 16px;
+  line-height: 1.45;
+  margin: 10px 0 0;
+}
+
+.radha-dashboard-meta {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+}
+
+.radha-dashboard-meta div {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(188, 211, 255, 0.74);
+  border-radius: var(--radha-radius);
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.radha-dashboard-meta span {
+  color: #23459c;
+  display: block;
+  font-size: 24px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.radha-dashboard-meta small {
+  color: var(--radha-muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.radha-admin.dashboard #content-main,
+.radha-admin.dashboard #content-related {
+  float: none;
+  margin: 0;
+  min-width: 0;
+  position: static;
+  width: auto;
+}
+
+.radha-admin.dashboard .radha-dashboard-apps {
+  display: grid;
+  gap: 18px;
+}
+
+.radha-admin.dashboard .radha-dashboard-apps .module {
+  margin: 0;
+}
+
+.radha-admin.dashboard .module caption a.section,
+.radha-admin.dashboard .module caption a.section:link,
+.radha-admin.dashboard .module caption a.section:visited {
+  color: #12306b;
+  font-size: 14px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.radha-admin.dashboard .module table th {
+  width: 100%;
+}
+
+.radha-admin.dashboard .module table th a {
+  color: #17233f;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.radha-admin.dashboard .module table th a:hover,
+.radha-admin.dashboard .module table th a:focus {
+  color: var(--radha-primary);
+}
+
+.radha-admin.dashboard .module table td {
+  white-space: nowrap;
+  width: 72px;
+}
+
+.radha-admin.dashboard .module table td a {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-width: 54px;
+  padding: 6px 10px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.radha-admin.dashboard .module table td a.addlink {
+  background: #e8f1ff;
+  color: #287ee8;
+}
+
+.radha-admin.dashboard .module table td a.changelink,
+.radha-admin.dashboard .module table td a.viewlink {
+  background: #f1e7ff;
+  color: #7b43cc;
+}
+
+.radha-admin.dashboard #content-related {
+  align-self: start;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  margin: 0;
+  overflow: visible;
+}
+
+.radha-admin.dashboard #content-related .module {
+  margin: 0;
+}
+
+.radha-admin.dashboard #recent-actions-module h3 {
+  color: var(--radha-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 18px 18px 10px;
+  text-transform: uppercase;
+}
+
+.radha-admin.dashboard #recent-actions-module p {
+  color: var(--radha-muted);
+  font-weight: 700;
+  margin: 0;
+  padding: 0 18px 18px;
+}
+
+.radha-admin.dashboard .actionlist {
+  list-style: none;
+  margin: 0;
+  padding: 0 18px 18px;
+}
+
+.radha-admin.dashboard .actionlist li {
+  background: #f8fbff;
+  border: 1px solid rgba(188, 211, 255, 0.62);
+  border-radius: var(--radha-radius);
+  color: var(--radha-text);
+  font-size: 13px;
+  line-height: 1.35;
+  margin: 0 0 10px;
+  padding: 12px;
+}
+
+.radha-admin.dashboard .actionlist li:last-child {
+  margin-bottom: 0;
+}
+
+.radha-admin.dashboard .actionlist a {
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.radha-admin.dashboard .actionlist .mini {
+  color: var(--radha-muted);
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.radha-admin.dashboard .messagelist {
+  grid-column: 1 / -1;
+}
+
+.radha-admin.dashboard #content .clear {
+  display: none;
+}
+
+.radha-admin div.breadcrumbs {
+  background: transparent;
+  border: 0;
+  color: var(--radha-muted);
+  font-size: 13px;
+  margin: 0;
+  padding: 20px clamp(16px, 3vw, 38px) 0;
+}
+
+.radha-admin div.breadcrumbs a {
+  color: var(--radha-primary);
+  font-weight: 700;
+}
+
+.radha-admin .messagelist {
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+.radha-admin .messagelist li {
+  background-color: var(--radha-primary-soft);
+  background-image: none;
+  border: 1px solid rgba(79, 149, 255, 0.24);
+  border-radius: var(--radha-radius);
+  box-shadow: 0 10px 24px rgba(44, 54, 91, 0.07);
+  color: var(--radha-primary-strong);
+  font-weight: 700;
+  margin: 0 0 10px;
+  padding: 12px 14px;
+}
+
+.radha-admin .messagelist li.warning {
+  background: #fff3d6;
+  border-color: rgba(166, 109, 6, 0.28);
+  color: var(--radha-warning);
+}
+
+.radha-admin .messagelist li.error {
+  background: #fae1dd;
+  border-color: rgba(180, 61, 51, 0.28);
+  color: var(--radha-danger);
+}
+
+.radha-admin .module,
+.radha-admin fieldset.module,
+.radha-admin .inline-group,
+.radha-admin #changelist,
+.radha-admin .login #content,
+.radha-admin .password-reset-form,
+.radha-admin .dashboard .app-list,
+.radha-admin #content-related {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(188, 211, 255, 0.9);
+  border-radius: var(--radha-radius);
+  box-shadow: var(--radha-shadow);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.radha-admin.change-form fieldset.module,
+.radha-admin.change-form .inline-group {
+  margin-bottom: 0;
+  overflow: visible;
+}
+
+.radha-admin .module h2,
+.radha-admin .module caption,
+.radha-admin .inline-group h2 {
+  background: rgba(248, 251, 255, 0.92);
+  border-bottom: 1px solid var(--radha-border);
+  color: var(--radha-text);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 14px 18px;
+  text-transform: none;
+}
+
+.radha-admin .module table {
+  background: transparent;
+}
+
+.radha-admin .dashboard .module table th,
+.radha-admin .dashboard .module table td {
+  border-bottom: 1px solid rgba(188, 211, 255, 0.58);
+  padding: 12px 16px;
+}
+
+.radha-admin .dashboard .module table tr:last-child th,
+.radha-admin .dashboard .module table tr:last-child td {
+  border-bottom: 0;
+}
+
+.radha-admin fieldset.module {
+  padding: 0;
+}
+
+.radha-admin fieldset.module h2 {
+  align-items: center;
+  display: flex;
+  min-height: 22px;
+}
+
+.radha-admin fieldset.module .description {
+  color: var(--radha-muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 14px 18px 0;
+}
+
+.radha-admin.change-form .module h2,
+.radha-admin.change-form .module caption,
+.radha-admin.change-form .inline-group h2 {
+  color: #12306b;
+  font-size: 14px;
+  padding: 16px 20px;
+}
+
+.radha-admin .form-row {
+  border-bottom: 1px solid rgba(188, 211, 255, 0.58);
+  box-sizing: border-box;
+  display: block;
+  min-width: 0;
+  overflow: visible;
+  padding: 18px 20px;
+}
+
+.radha-admin .form-row:last-child {
+  border-bottom: 0;
+}
+
+.radha-admin .form-row > div {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.radha-admin .form-row .flex-container {
+  align-items: start;
+  display: grid;
+  gap: 10px 20px;
+  grid-template-columns: minmax(150px, var(--radha-form-label)) minmax(260px, var(--radha-form-field));
+  width: 100%;
+}
+
+.radha-admin .form-row.form-multiline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.radha-admin .form-row.form-multiline > div {
+  flex: 1 1 320px;
+  max-width: var(--radha-form-field);
+  min-width: 260px;
+}
+
+.radha-admin .form-row .flex-container > label {
+  grid-column: 1;
+}
+
+.radha-admin .form-row .flex-container > :not(label) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.radha-admin .aligned label,
+.radha-admin .aligned label.required,
+.radha-admin form .form-row p label {
+  color: var(--radha-text);
+  display: block;
+  float: none;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0;
+  max-width: var(--radha-form-label);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 10px 0 0;
+  width: auto;
+}
+
+.radha-admin .aligned .checkbox-row {
+  align-items: flex-start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: var(--radha-form-label) minmax(260px, var(--radha-form-field));
+}
+
+.radha-admin .aligned .checkbox-row label {
+  color: var(--radha-text);
+  grid-column: 2;
+  line-height: 1.5;
+  max-width: none;
+  padding-top: 0;
+}
+
+.radha-admin .aligned .checkbox-row input[type="checkbox"] {
+  grid-column: 2;
+  margin: 2px 0 0;
+  transform: translateX(-26px);
+}
+
+.radha-admin .aligned .form-row input,
+.radha-admin .aligned .form-row select,
+.radha-admin .aligned .form-row textarea,
+.radha-admin .aligned .form-row .readonly,
+.radha-admin .aligned .form-row .vTextField,
+.radha-admin .aligned .form-row .vURLField,
+.radha-admin .aligned .form-row .vIntegerField,
+.radha-admin .aligned .form-row .vBigIntegerField,
+.radha-admin .aligned .form-row .vForeignKeyRawIdAdminField,
+.radha-admin .aligned .form-row .vManyToManyRawIdAdminField {
+  margin-left: 0;
+}
+
+.radha-admin .aligned .form-row input,
+.radha-admin .aligned .form-row select,
+.radha-admin .aligned .form-row textarea,
+.radha-admin .aligned .form-row .readonly,
+.radha-admin .aligned .form-row .related-widget-wrapper {
+  max-width: min(100%, var(--radha-form-field));
+}
+
+.radha-admin .aligned .form-row input[type="checkbox"],
+.radha-admin .aligned .form-row input[type="radio"] {
+  max-width: none;
+}
+
+.radha-admin .aligned .form-row .vTextField,
+.radha-admin .aligned .form-row .vURLField,
+.radha-admin .aligned .form-row input[type="text"],
+.radha-admin .aligned .form-row input[type="password"],
+.radha-admin .aligned .form-row input[type="email"],
+.radha-admin .aligned .form-row input[type="url"],
+.radha-admin .aligned .form-row textarea {
+  width: min(100%, 360px);
+}
+
+.radha-admin .aligned .form-row .vLargeTextField,
+.radha-admin .aligned .form-row .vXMLLargeTextField,
+.radha-admin .aligned .form-row textarea {
+  width: min(100%, var(--radha-form-field));
+}
+
+.radha-admin .help,
+.radha-admin .helptext,
+.radha-admin p.help,
+.radha-admin div.help,
+.radha-admin form .form-row p.help {
+  color: var(--radha-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 6px 0 0;
+  max-width: min(100%, var(--radha-form-field));
+  overflow-wrap: normal;
+  padding: 0;
+  width: auto;
+}
+
+.radha-admin form .aligned p.help,
+.radha-admin form .aligned div.help,
+.radha-admin form .aligned input + p.help,
+.radha-admin form .aligned textarea + p.help,
+.radha-admin form .aligned select + p.help,
+.radha-admin form .aligned input + div.help,
+.radha-admin form .aligned textarea + div.help,
+.radha-admin form .aligned select + div.help,
+.radha-admin .aligned .checkbox-row + div.help {
+  margin-left: calc(var(--radha-form-label) + 20px);
+  padding-left: 0;
+}
+
+.radha-admin .form-row .help ul,
+.radha-admin .form-row .help ol {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.radha-admin .form-row .help li {
+  margin: 2px 0;
+}
+
+.radha-admin .readonly {
+  color: var(--radha-muted);
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 9px 0;
+}
+
+.radha-admin input[type="text"],
+.radha-admin input[type="password"],
+.radha-admin input[type="email"],
+.radha-admin input[type="url"],
+.radha-admin input[type="number"],
+.radha-admin input[type="tel"],
+.radha-admin textarea,
+.radha-admin select,
+.radha-admin .select2-container--admin-autocomplete .select2-selection--single,
+.radha-admin .select2-container--admin-autocomplete .select2-selection--multiple {
+  background: #f8fbff;
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  box-sizing: border-box;
+  color: var(--radha-text);
+  min-height: 40px;
+  padding: 8px 11px;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.radha-admin textarea {
+  min-height: 110px;
+}
+
+.radha-admin input[type="checkbox"],
+.radha-admin input[type="radio"] {
+  accent-color: var(--radha-primary);
+}
+
+.radha-admin input:focus,
+.radha-admin textarea:focus,
+.radha-admin select:focus,
+.radha-admin .select2-container--admin-autocomplete.select2-container--focus .select2-selection--single,
+.radha-admin .select2-container--admin-autocomplete.select2-container--focus .select2-selection--multiple {
+  background: #ffffff;
+  border-color: var(--radha-primary);
+  box-shadow: 0 0 0 3px rgba(79, 149, 255, 0.16);
+  outline: none;
+}
+
+.radha-admin .selector {
+  align-items: stretch;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) 42px minmax(260px, 1fr);
+  max-width: min(100%, 920px);
+  width: 100%;
+}
+
+.radha-admin .selector select {
+  box-sizing: border-box;
+  min-height: 240px;
+  width: 100%;
+}
+
+.radha-admin .selector-available,
+.radha-admin .selector-chosen {
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  box-shadow: none;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.radha-admin .selector h2 {
+  border-radius: var(--radha-radius) var(--radha-radius) 0 0;
+}
+
+.radha-admin .selector .selector-available-title,
+.radha-admin .selector .selector-chosen-title {
+  border: 0;
+  border-bottom: 1px solid var(--radha-border);
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+  padding: 12px;
+}
+
+.radha-admin .selector .selector-available-title {
+  background: #f8fbff;
+  color: #23459c;
+}
+
+.radha-admin .selector .selector-chosen-title {
+  background: #2f7894;
+  color: #ffffff;
+}
+
+.radha-admin .selector .selector-available-title label,
+.radha-admin .selector .selector-chosen-title label {
+  color: inherit;
+  max-width: none;
+  padding: 0;
+}
+
+.radha-admin .selector .helptext {
+  color: var(--radha-muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 4px;
+  max-width: none;
+}
+
+.radha-admin .selector .selector-filter {
+  align-items: center;
+  background: #ffffff;
+  border-color: var(--radha-border);
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.radha-admin .selector .selector-filter label,
+.radha-admin .inline-group .aligned .selector .selector-filter label {
+  flex: 0 0 18px;
+  height: 18px;
+  margin: 0;
+  max-width: 18px;
+  min-width: 18px;
+  overflow: hidden;
+  padding: 0;
+  width: 18px;
+}
+
+.radha-admin .selector .selector-filter input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.radha-admin .selector ul.selector-chooser {
+  align-self: center;
+  background: #e8f1ff;
+  border: 1px solid rgba(188, 211, 255, 0.9);
+  border-radius: 999px;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  margin: 0;
+  padding: 8px;
+  transform: none;
+  width: auto;
+}
+
+.radha-admin .selector-chooser li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.radha-admin .selector-add,
+.radha-admin .selector-remove {
+  border-radius: 50%;
+}
+
+.radha-admin .selector .list-footer-display {
+  border-color: var(--radha-border);
+  font-weight: 800;
+  margin: 0;
+}
+
+.radha-admin .selector-chooseall,
+.radha-admin .selector-clearall {
+  box-sizing: border-box;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.radha-admin .related-widget-wrapper {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.radha-admin .related-widget-wrapper select {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.radha-admin .related-widget-wrapper-link {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid rgba(188, 211, 255, 0.72);
+  border-radius: 50%;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.radha-admin .datetime {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.radha-admin .datetime br {
+  display: none;
+}
+
+.radha-admin .datetimeshortcuts {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+.radha-admin .vDateField,
+.radha-admin .vTimeField {
+  width: 150px !important;
+}
+
+.radha-admin .submit-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  bottom: 0;
+  box-shadow: 0 -12px 34px rgba(44, 54, 91, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin: 22px 0 0;
+  padding: 12px;
+  position: sticky;
+  z-index: 20;
+}
+
+.radha-admin .submit-row input,
+.radha-admin .submit-row a.deletelink,
+.radha-admin input[type="submit"],
+.radha-admin button,
+.radha-admin .button,
+.radha-admin a.button {
+  border-radius: var(--radha-radius);
+  box-sizing: border-box;
+  font-weight: 800;
+  min-height: 38px;
+  padding: 10px 14px;
+}
+
+.radha-admin .submit-row a.deletelink {
+  align-items: center;
+  display: inline-flex;
+  margin-right: auto;
+}
+
+.radha-admin input[type="submit"],
+.radha-admin .button,
+.radha-admin input[type="button"],
+.radha-admin .submit-row input,
+.radha-admin a.button {
+  background: linear-gradient(90deg, #287ee8 0%, #1b8f83 52%, #9853ef 100%);
+  border: 0;
+  color: #ffffff;
+}
+
+.radha-admin input[type="submit"]:hover,
+.radha-admin .button:hover,
+.radha-admin input[type="button"]:hover,
+.radha-admin .submit-row input:hover,
+.radha-admin a.button:hover {
+  background: linear-gradient(90deg, #1f70d3 0%, #16796f 52%, #8546dc 100%);
+}
+
+.radha-admin input.default,
+.radha-admin .submit-row input.default {
+  background: linear-gradient(90deg, #287ee8 0%, #1b8f83 52%, #9853ef 100%);
+}
+
+.radha-admin input.default:hover,
+.radha-admin .submit-row input.default:hover {
+  background: linear-gradient(90deg, #1f70d3 0%, #16796f 52%, #8546dc 100%);
+}
+
+.radha-admin .deletelink,
+.radha-admin .submit-row a.deletelink {
+  background: #fae1dd;
+  color: var(--radha-danger) !important;
+}
+
+.radha-admin .deletelink:hover,
+.radha-admin .submit-row a.deletelink:hover {
+  background: var(--radha-danger);
+  color: #ffffff !important;
+}
+
+.radha-admin .object-tools {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 18px;
+  padding: 0;
+}
+
+.radha-admin .object-tools li {
+  display: block;
+  margin: 0;
+}
+
+.radha-admin .object-tools a,
+.radha-admin .object-tools a:link,
+.radha-admin .object-tools a:visited {
+  background: var(--radha-panel);
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  color: var(--radha-primary);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 9px 12px;
+}
+
+.radha-admin .object-tools a:hover {
+  background: var(--radha-primary-soft);
+}
+
+.radha-admin #changelist {
+  border-radius: var(--radha-radius);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 290px);
+}
+
+.radha-admin #changelist-form {
+  min-width: 0;
+}
+
+.radha-admin #changelist #toolbar,
+.radha-admin #changelist .actions {
+  background: rgba(248, 251, 255, 0.92);
+  border-bottom: 1px solid var(--radha-border);
+  padding: 14px 16px;
+}
+
+.radha-admin #changelist #toolbar form {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.radha-admin #changelist #toolbar #searchbar {
+  flex: 1 1 260px;
+  margin: 0;
+  width: auto;
+}
+
+.radha-admin #changelist-filter {
+  background: rgba(248, 251, 255, 0.82);
+  border-left: 1px solid var(--radha-border);
+  border-radius: 0;
+  box-shadow: none;
+  grid-column: 2;
+  grid-row: 1 / span 4;
+  margin: 0;
+  min-width: 0;
+  padding: 0 0 14px;
+  position: static;
+  width: auto;
+}
+
+.radha-admin #changelist-filter h2 {
+  background: rgba(248, 251, 255, 0.92);
+  border-bottom: 1px solid var(--radha-border);
+  color: var(--radha-text);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin: 0;
+  padding: 14px 16px;
+  text-transform: none;
+}
+
+.radha-admin #changelist-filter h3 {
+  color: var(--radha-text);
+  font-size: 12px;
+  font-weight: 800;
+  margin: 18px 16px 8px;
+}
+
+.radha-admin #changelist-filter ul {
+  margin: 0;
+  padding: 0 16px;
+}
+
+.radha-admin #changelist-filter li {
+  border-radius: var(--radha-radius);
+  margin: 2px 0;
+  padding: 6px 8px;
+}
+
+.radha-admin #changelist-filter li.selected {
+  background: var(--radha-primary-soft);
+  border-left: 3px solid var(--radha-primary);
+  padding-left: 8px;
+}
+
+.radha-admin #changelist-filter li.selected a {
+  color: var(--radha-primary-strong) !important;
+  font-weight: 800;
+}
+
+.radha-admin .results {
+  overflow-x: auto;
+}
+
+.radha-admin table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.radha-admin thead th {
+  background: #f4f8ff;
+  border-bottom: 1px solid var(--radha-border);
+  color: var(--radha-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.radha-admin tbody th,
+.radha-admin tbody td,
+.radha-admin .inline-group .tabular td,
+.radha-admin .inline-group .tabular th {
+  border-bottom: 1px solid rgba(188, 211, 255, 0.58);
+  padding: 11px 12px;
+  vertical-align: middle;
+}
+
+.radha-admin tbody tr:hover {
+  background: rgba(232, 241, 255, 0.72);
+}
+
+.radha-admin .row1,
+.radha-admin .row2 {
+  background: transparent;
+}
+
+.radha-admin .paginator {
+  background: var(--radha-panel-soft);
+  border-top: 1px solid var(--radha-border);
+  color: var(--radha-muted);
+  font-weight: 700;
+  padding: 14px 16px;
+}
+
+.radha-admin .paginator a,
+.radha-admin .paginator .this-page {
+  border-radius: var(--radha-radius);
+  padding: 5px 8px;
+}
+
+.radha-admin .paginator .this-page {
+  background: var(--radha-primary);
+  color: #ffffff;
+}
+
+.radha-admin .inline-group {
+  padding: 0;
+}
+
+.radha-admin .inline-group .tabular {
+  overflow-x: auto;
+}
+
+.radha-admin .inline-group .tabular table {
+  min-width: 860px;
+}
+
+.radha-admin .inline-group .tabular fieldset.module {
+  border: 0;
+  box-shadow: none;
+  margin: 0;
+}
+
+.radha-admin .inline-group .tabular tr.has_original td {
+  padding-top: 14px;
+}
+
+.radha-admin .inline-group .tabular input[type="text"],
+.radha-admin .inline-group .tabular input[type="number"],
+.radha-admin .inline-group .tabular input[type="email"],
+.radha-admin .inline-group .tabular select {
+  min-width: 130px;
+  width: 100%;
+}
+
+.radha-admin .inline-related h3 {
+  background: #f4f8ff;
+  border-bottom: 1px solid var(--radha-border);
+  color: var(--radha-text);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 12px 16px;
+}
+
+.radha-admin .errornote,
+.radha-admin ul.errorlist li {
+  background: #fae1dd;
+  border: 1px solid rgba(180, 61, 51, 0.3);
+  border-radius: var(--radha-radius);
+  color: var(--radha-danger);
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
+.radha-admin .calendarbox,
+.radha-admin .clockbox {
+  border: 1px solid var(--radha-border);
+  border-radius: var(--radha-radius);
+  box-shadow: var(--radha-shadow);
+}
+
+.radha-admin .calendar caption,
+.radha-admin .calendarbox h2 {
+  background: var(--radha-primary);
+  color: #ffffff;
+}
+
+.radha-admin #footer {
+  background: transparent;
+  box-sizing: border-box;
+  padding: 0 clamp(18px, 3vw, 34px) 28px;
+}
+
+.radha-footer {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(188, 211, 255, 0.76);
+  border-radius: var(--radha-radius);
+  box-shadow: 0 14px 34px rgba(44, 54, 91, 0.08);
+  color: var(--radha-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 10px 18px;
+  justify-content: space-between;
+  line-height: 1.4;
+  padding: 14px 18px;
+}
+
+.radha-footer__brand {
+  color: #12306b;
+  font-weight: 850;
+}
+
+.radha-admin.radha-login-page {
+  background: var(--radha-page-gradient);
+  background-attachment: fixed;
+  color: #16315d;
+  min-height: 100vh;
+}
+
+.radha-admin.radha-login-page #container {
+  background: var(--radha-page-gradient);
+  box-sizing: border-box;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(32px, 7vh, 72px) 20px 28px;
+  place-items: center;
+}
+
+.radha-admin.radha-login-page .main {
+  display: block;
+  margin: 0;
+  padding: 0;
+  width: min(100%, 448px);
+}
+
+.radha-admin.radha-login-page .content,
+.radha-admin.radha-login-page #content {
+  background: transparent;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.radha-admin.radha-login-page #content .clear,
+.radha-admin.radha-login-page #footer {
+  display: none;
+}
+
+.radha-login-shell {
+  width: 100%;
+}
+
+.radha-login-brand {
+  align-items: center;
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+  margin: 0 0 30px;
+  text-align: center;
+}
+
+.radha-login-emblem {
+  align-items: center;
+  background: linear-gradient(135deg, #1b8f83 0%, #4f7dff 62%, #9957f5 100%);
+  border-radius: 50%;
+  box-shadow: 0 16px 34px rgba(68, 93, 205, 0.24);
+  color: #ffffff;
+  display: inline-flex;
+  height: 64px;
+  justify-content: center;
+  width: 64px;
+}
+
+.radha-login-emblem span {
+  font-size: 26px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.radha-login-brand__name {
+  color: #12306b;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.radha-login-brand__meta {
+  color: #5577ff;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.radha-login-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(188, 211, 255, 0.9);
+  border-radius: var(--radha-radius);
+  box-shadow: 0 24px 55px rgba(44, 54, 91, 0.17);
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 34px 32px 32px;
+}
+
+.radha-login-card__head {
+  margin: 0 0 24px;
+  text-align: center;
+}
+
+.radha-admin.radha-login-page #content .radha-login-card__head h1 {
+  color: #23459c;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+  margin: 0 0 12px;
+}
+
+.radha-admin.radha-login-page #content .radha-login-card__head p {
+  color: #5b76ff;
+  font-size: 15px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.radha-login-alert {
+  background: #fff1f0;
+  border: 1px solid rgba(180, 61, 51, 0.26);
+  border-radius: var(--radha-radius);
+  color: var(--radha-danger);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0 0 16px;
+  padding: 11px 12px;
+}
+
+.radha-login-form {
+  display: grid;
+  gap: 18px;
+}
+
+.radha-field {
+  display: grid;
+  gap: 8px;
+}
+
+.radha-field label {
+  color: #294797;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.radha-input-wrap {
+  position: relative;
+}
+
+.radha-input-icon {
+  color: #4a95ff;
+  display: inline-flex;
+  left: 13px;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.radha-input-icon svg {
+  fill: none;
+  height: 20px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 20px;
+}
+
+.radha-admin.radha-login-page .radha-input-wrap input[type="text"],
+.radha-admin.radha-login-page .radha-input-wrap input[type="password"] {
+  background: #f8fbff;
+  border: 1px solid #b9d4ff;
+  border-radius: var(--radha-radius);
+  box-shadow: none;
+  color: #17233f;
+  min-height: 38px;
+  padding: 9px 12px 9px 44px;
+  width: 100%;
+}
+
+.radha-admin.radha-login-page .radha-input-wrap input:focus {
+  background: #ffffff;
+  border-color: #4f95ff;
+  box-shadow: 0 0 0 3px rgba(79, 149, 255, 0.16);
+}
+
+.radha-input-wrap:focus-within .radha-input-icon {
+  color: #245cf5;
+}
+
+.radha-admin.radha-login-page .errorlist {
+  list-style: none;
+  margin: 0 0 2px;
+  padding: 0;
+}
+
+.radha-admin.radha-login-page .errorlist li {
+  background: #fff1f0;
+  border: 1px solid rgba(180, 61, 51, 0.22);
+  border-radius: var(--radha-radius);
+  color: var(--radha-danger);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.radha-login-options {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: space-between;
+  margin: 2px 0 0;
+}
+
+.radha-remember {
+  align-items: center;
+  color: #5c73d8;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 9px;
+  line-height: 1.2;
+}
+
+.radha-remember input {
+  accent-color: #367fff;
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.radha-login-options a,
+.radha-login-options a:link,
+.radha-login-options a:visited {
+  color: #1f5eff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.radha-login-options a:hover,
+.radha-login-options a:focus {
+  color: #173fb8;
+  text-decoration: underline;
+}
+
+.radha-admin.radha-login-page .radha-login-submit {
+  align-items: center;
+  background: linear-gradient(90deg, #287ee8 0%, #1b8f83 52%, #9853ef 100%);
+  border: 0;
+  border-radius: var(--radha-radius);
+  box-shadow: 0 14px 28px rgba(49, 86, 196, 0.24);
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 850;
+  gap: 10px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 16px;
+  transition: box-shadow 150ms ease, filter 150ms ease, transform 150ms ease;
+  width: 100%;
+}
+
+.radha-admin.radha-login-page .radha-login-submit:hover,
+.radha-admin.radha-login-page .radha-login-submit:focus {
+  box-shadow: 0 18px 32px rgba(49, 86, 196, 0.3);
+  filter: saturate(1.05);
+  transform: translateY(-1px);
+}
+
+.radha-admin.radha-login-page .radha-login-submit:focus {
+  outline: 3px solid rgba(79, 149, 255, 0.22);
+  outline-offset: 3px;
+}
+
+.radha-login-submit svg {
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  width: 18px;
+}
+
+.radha-login-footnote {
+  color: #5b76ff;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 28px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .radha-admin.radha-login-page #container {
+    padding: 26px 14px 22px;
+  }
+
+  .radha-login-brand {
+    margin-bottom: 22px;
+  }
+
+  .radha-login-emblem {
+    height: 58px;
+    width: 58px;
+  }
+
+  .radha-login-card {
+    padding: 28px 20px 24px;
+  }
+
+  .radha-login-options {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.radha-sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .radha-admin #changelist {
+    display: block;
+  }
+
+  .radha-admin #changelist-filter {
+    border-left: 0;
+    border-top: 1px solid var(--radha-border);
+  }
+}
+
+@media (max-width: 960px) {
+  :root {
+    --radha-sidebar: 300px;
+  }
+
+  .radha-admin #header {
+    min-height: 72px;
+    padding: 10px 14px;
+  }
+
+  .radha-admin .radha-sidebar-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+  }
+
+  .radha-admin .main {
+    display: block;
+    padding: 18px 14px 0;
+  }
+
+  .radha-admin #nav-sidebar {
+    height: calc(100vh - 72px);
+    left: 0;
+    max-width: calc(100vw - 34px);
+    position: fixed;
+    top: 72px;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+    z-index: 50;
+  }
+
+  .radha-admin.radha-sidebar-open #nav-sidebar {
+    transform: translateX(0);
+  }
+
+  .radha-sidebar-overlay {
+    background: rgba(23, 35, 63, 0.34);
+    border: 0;
+    bottom: 0;
+    cursor: default;
+    left: 0;
+    padding: 0;
+    position: fixed;
+    right: 0;
+    top: 72px;
+    z-index: 45;
+  }
+
+  .radha-admin.radha-sidebar-open .radha-sidebar-overlay {
+    display: block;
+  }
+
+  .radha-admin .content {
+    padding: 0 0 34px;
+  }
+
+  .radha-admin.dashboard #content {
+    display: block;
+    max-width: 760px;
+  }
+
+  .radha-dashboard-hero {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 18px;
+  }
+
+  .radha-dashboard-meta {
+    width: 100%;
+  }
+
+  .radha-admin div.breadcrumbs {
+    padding: 16px 14px 0;
+  }
+
+  .radha-admin .form-row {
+    padding: 14px;
+  }
+
+  .radha-admin .form-row .flex-container {
+    grid-template-columns: 1fr;
+  }
+
+  .radha-admin .form-row .flex-container > label,
+  .radha-admin .form-row .flex-container > :not(label) {
+    grid-column: 1;
+  }
+
+  .radha-admin .form-row.form-multiline > div {
+    flex-basis: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .radha-admin .aligned label,
+  .radha-admin .aligned label.required,
+  .radha-admin form .form-row p label {
+    max-width: none;
+    padding-top: 0;
+  }
+
+  .radha-admin .aligned .checkbox-row {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .radha-admin .aligned .checkbox-row input[type="checkbox"] {
+    grid-column: 1;
+    transform: none;
+  }
+
+  .radha-admin .aligned .checkbox-row label {
+    grid-column: 2;
+  }
+
+  .radha-admin form .aligned p.help,
+  .radha-admin form .aligned div.help,
+  .radha-admin form .aligned input + p.help,
+  .radha-admin form .aligned textarea + p.help,
+  .radha-admin form .aligned select + p.help,
+  .radha-admin form .aligned input + div.help,
+  .radha-admin form .aligned textarea + div.help,
+  .radha-admin form .aligned select + div.help,
+  .radha-admin .aligned .checkbox-row + div.help {
+    margin-left: 0;
+  }
+
+  .radha-admin .selector {
+    grid-template-columns: 1fr;
+  }
+
+  .radha-admin .selector ul.selector-chooser {
+    align-self: stretch;
+    display: flex;
+    justify-content: center;
+  }
+
+  .radha-admin #user-tools {
+    font-size: 0;
+    gap: 6px;
+  }
+
+  .radha-admin #user-tools strong {
+    display: none;
+  }
+
+  .radha-admin #user-tools a,
+  .radha-admin #user-tools button {
+    font-size: 12px;
+    padding: 8px 9px;
+  }
+}
+
+@media (max-width: 640px) {
+  .radha-brand__name {
+    font-size: 16px;
+    max-width: 44vw;
+  }
+
+  .radha-brand__meta {
+    display: none;
+  }
+
+  .radha-admin #content h1 {
+    font-size: 24px;
+  }
+
+  .radha-admin .submit-row {
+    align-items: stretch;
+    flex-direction: column;
+    position: static;
+  }
+
+  .radha-admin .submit-row input,
+  .radha-admin .submit-row a.deletelink {
+    justify-content: center;
+    margin: 0;
+    text-align: center;
+    width: 100%;
+  }
+}
