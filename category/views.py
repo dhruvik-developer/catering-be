@@ -24,7 +24,8 @@ class CategoryViewSet(generics.GenericAPIView):
                 },
                 status=status.HTTP_200_OK,
             )
-        last_category = Category.objects.order_by('-positions').first()
+        parent_id = request.data.get("parent")
+        last_category = Category.objects.filter(parent_id=parent_id).order_by('-positions').first()
         last_positions = last_category.positions if last_category else 0
 
         request.data["positions"] = last_positions + 1
@@ -49,7 +50,7 @@ class CategoryViewSet(generics.GenericAPIView):
         )
 
     def get(self, request):
-        queryset = Category.objects.all()
+        queryset = Category.objects.filter(parent__isnull=True).order_by('positions')
         serializer = CategorySerializer(queryset, many=True)
         return Response(
             {
@@ -171,15 +172,17 @@ class CategoryPositionsChangesViewSet(generics.GenericAPIView):
 
             # If moving up (better position, smaller number)
             if new_positions < old_positions:
-                # Shift all employees between new_position and old_position down by 1
+                # Shift all categories between new_position and old_position down by 1
                 Category.objects.filter(
+                    parent=category.parent,
                     positions__gte=new_positions, positions__lt=old_positions
                 ).update(positions=models.F("positions") + 1)
 
             # If moving down (worse position, larger number)
             elif new_positions > old_positions:
-                # Shift all employees between old_position and new_position up by 1
+                # Shift all categories between old_position and new_position up by 1
                 Category.objects.filter(
+                    parent=category.parent,
                     positions__gt=old_positions, positions__lte=new_positions
                 ).update(positions=models.F("positions") - 1)
 
