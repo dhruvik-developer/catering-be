@@ -37,6 +37,12 @@ class SubscriptionPlan(models.Model):
         help_text="0 means unlimited users.",
     )
     is_active = models.BooleanField(default=True)
+    included_modules = models.ManyToManyField(
+        "accesscontrol.PermissionModule",
+        blank=True,
+        related_name="plans",
+        help_text="Modules every Client on this plan automatically gets.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -136,6 +142,16 @@ class Client(TenantMixin):
         if self.subscription_end_date and self.subscription_end_date < timezone.localdate():
             return False
         return True
+
+    def sync_modules_from_plan(self):
+        if self.subscription_plan_id:
+            self.enabled_modules.set(self.subscription_plan.included_modules.all())
+        else:
+            self.enabled_modules.clear()
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.sync_modules_from_plan()
 
 
 class Domain(DomainMixin):

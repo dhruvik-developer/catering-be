@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django_tenants.utils import schema_context
 
 from tenancy.models import Client, Domain, SubscriptionPlan
+from user.models import BusinessProfile
 
 MIN_PASSWORD_LENGTH = 8
 UserModel = get_user_model()
@@ -12,7 +13,9 @@ UserModel = get_user_model()
 
 class DomainInline(admin.TabularInline):
     model = Domain
-    extra = 0
+    extra = 1
+    min_num = 1
+    validate_min = True
 
 
 class ClientAdminForm(forms.ModelForm):
@@ -64,7 +67,6 @@ class ClientAdmin(admin.ModelAdmin):
     list_filter = ("subscription_status", "subscription_plan")
     search_fields = ("name", "schema_name", "contact_email", "contact_phone")
     autocomplete_fields = ("subscription_plan", "created_by")
-    filter_horizontal = ("enabled_modules",)
     inlines = [DomainInline]
     readonly_fields = ("created_by", "created_at", "updated_at")
     fieldsets = (
@@ -88,8 +90,11 @@ class ClientAdmin(admin.ModelAdmin):
                     "subscription_status",
                     "subscription_start_date",
                     "subscription_end_date",
-                    "enabled_modules",
-                )
+                ),
+                "description": (
+                    "Modules are inherited automatically from the selected "
+                    "Subscription Plan. Configure modules on the plan, not here."
+                ),
             },
         ),
         (
@@ -114,19 +119,25 @@ class ClientAdmin(admin.ModelAdmin):
         password = form.cleaned_data.get("create_admin_password")
         email = form.cleaned_data.get("create_admin_email") or ""
 
-        if username and password:
-            with schema_context(obj.schema_name):
+        with schema_context(obj.schema_name):
+            if username and password:
                 UserModel.objects.create_user(
                     username=username,
                     email=email,
                     password=password,
                     is_staff=True,
                 )
-            self.message_user(
-                request,
-                f"Tenant admin user '{username}' created in schema '{obj.schema_name}'.",
-                level=messages.SUCCESS,
-            )
+                self.message_user(
+                    request,
+                    f"Tenant admin user '{username}' created in schema '{obj.schema_name}'.",
+                    level=messages.SUCCESS,
+                )
+
+            if not change and not BusinessProfile.objects.exists():
+                BusinessProfile.objects.create(
+                    caters_name=obj.name,
+                    phone_number=obj.contact_phone or "",
+                )
 
     @admin.display(description="Primary Domain")
     def primary_domain(self, obj):
@@ -154,13 +165,19 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         "price",
         "billing_cycle",
         "max_users",
+        "module_count",
         "client_count",
         "is_active",
     )
     list_filter = ("billing_cycle", "is_active")
     search_fields = ("name", "code")
     ordering = ("name",)
+    filter_horizontal = ("included_modules",)
 
     @admin.display(description="Tenants")
     def client_count(self, obj):
         return obj.clients.count()
+
+    @admin.display(description="Modules")
+    def module_count(self, obj):
+        return obj.included_modules.count()

@@ -5,3 +5,6 @@ class TenancyConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "tenancy"
     verbose_name = "Tenancy"
+
+    def ready(self):
+        from tenancy import signals  # noqa: F401

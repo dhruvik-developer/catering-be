@@ -5,6 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
+from django.db import connection
+from django.http import JsonResponse
 from .models import UserModel, Note, BusinessProfile, SubscriptionPlan
 from tenancy.models import Client as Tenant
 from .serializers import (
@@ -68,10 +70,11 @@ class LoginViewSet(generics.GenericAPIView):
                 )
 
             user_type = "admin" if user.is_superuser or user.is_staff else "user"
-            if hasattr(user, "staff_profile"):
-                user_type = "staff"
-            elif hasattr(user, "vendor_profile"):
-                user_type = "vendor"
+            if getattr(connection, "schema_name", "public") != "public":
+                if hasattr(user, "staff_profile"):
+                    user_type = "staff"
+                elif hasattr(user, "vendor_profile"):
+                    user_type = "vendor"
 
             response_data = {
                 "username": user.username,
@@ -545,12 +548,31 @@ class ChangePasswordAPIView(generics.GenericAPIView):
         )
 
 
+def _tenant_only_guard():
+    if getattr(connection, "schema_name", "public") == "public":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Business profiles are available only on tenant domains.",
+                "data": {},
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    return None
+
+
 class BusinessProfileAPIView(generics.GenericAPIView):
     serializer_class = BusinessProfileSerializer
     queryset = BusinessProfile.objects.all()
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "business_profiles"
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def dispatch(self, request, *args, **kwargs):
+        guard = _tenant_only_guard()
+        if guard is not None:
+            return guard
+        return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
@@ -600,6 +622,12 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "business_profiles"
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def dispatch(self, request, *args, **kwargs):
+        guard = _tenant_only_guard()
+        if guard is not None:
+            return guard
+        return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
