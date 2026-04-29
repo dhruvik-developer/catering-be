@@ -9,7 +9,8 @@ from radha.Utils.permissions import get_tenant_enabled_module_codes, get_user_ac
 from tenancy.serializers import ClientSummarySerializer
 from user.tenanting import normalize_schema_name, provision_tenant_schema
 
-from .models import BusinessProfile, Note, SubscriptionPlan, Tenant, UserModel
+from tenancy.models import Client, Domain, SubscriptionPlan
+from .models import BusinessProfile, Note, UserModel
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -55,7 +56,7 @@ class TenantSummarySerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = Tenant
+        model = Client
         fields = [
             "id",
             "name",
@@ -115,7 +116,7 @@ class TenantSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = Tenant
+        model = Client
         fields = [
             "id",
             "name",
@@ -160,7 +161,7 @@ class TenantSerializer(serializers.ModelSerializer):
         schema_name = base_schema_name
         suffix = 2
 
-        while Tenant.objects.filter(schema_name=schema_name).exists():
+        while Client.objects.filter(schema_name=schema_name).exists():
             suffix_text = f"_{suffix}"
             schema_name = f"{base_schema_name[:63 - len(suffix_text)]}{suffix_text}"
             suffix += 1
@@ -172,7 +173,7 @@ class TenantSerializer(serializers.ModelSerializer):
             schema_name = normalize_schema_name(value)
         except ValueError as exc:
             raise serializers.ValidationError(str(exc)) from exc
-        duplicate_query = Tenant.objects.filter(schema_name=schema_name)
+        duplicate_query = Client.objects.filter(schema_name=schema_name)
         if self.instance:
             duplicate_query = duplicate_query.exclude(pk=self.instance.pk)
         if duplicate_query.exists():
@@ -180,7 +181,7 @@ class TenantSerializer(serializers.ModelSerializer):
         if (
             self.instance
             and self.instance.schema_name != schema_name
-            and self.instance.schema_status == Tenant.SCHEMA_READY
+            and self.instance.schema_status == "ready"
         ):
             raise serializers.ValidationError(
                 "Schema name cannot be changed after the tenant schema is ready."
@@ -204,9 +205,20 @@ class TenantSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             validated_data["created_by"] = request.user
 
-        tenant = Tenant.objects.create(**validated_data)
+        tenant = Client.objects.create(**validated_data)
         if enabled_modules:
             tenant.enabled_modules.set(enabled_modules)
+
+        # Create the domain for routing
+        from django.conf import settings
+        root_domain = getattr(settings, "SAAS_ROOT_DOMAIN", "localhost")
+        domain_url = f"{tenant.schema_name}.{root_domain}"
+        
+        Domain.objects.create(
+            domain=domain_url,
+            tenant=tenant,
+            is_primary=True
+        )
 
         provision_tenant_schema(tenant)
 

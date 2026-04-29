@@ -5,7 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
-from .models import UserModel, Note, BusinessProfile, SubscriptionPlan, Tenant
+from .models import UserModel, Note, BusinessProfile, SubscriptionPlan
+from tenancy.models import Client as Tenant
 from .serializers import (
     LoginSerializer,
     NoteSerializer,
@@ -24,10 +25,13 @@ from tenancy.serializers import ClientSummarySerializer
 
 class IsPlatformAdmin(BasePermission):
     def has_permission(self, request, view):
+        tenant = getattr(request, "tenant", None)
+        is_public = tenant is None or getattr(tenant, "schema_name", "public") == "public"
         return bool(
             request.user
             and request.user.is_authenticated
             and request.user.is_superuser
+            and is_public
         )
 
 # --------------------    LoginViewSet    --------------------

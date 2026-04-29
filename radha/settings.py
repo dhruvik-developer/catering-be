@@ -95,20 +95,6 @@ SHARED_APPS = (
     "django_filters",
     "accesscontrol",
     "user",
-    # Legacy migration bridge: some shared-era migrations depend on business
-    # apps. These tables remain in public until the legacy migrations are
-    # squashed/split, while tenant schemas still provide the isolated runtime.
-    "category",
-    "eventbooking",
-    "item",
-    "ListOfIngridients",
-    "payments",
-    "pdfformatter",
-    "stockmanagement",
-    "Expense",
-    "vendor",
-    "eventstaff",
-    "groundmanagement",
 )
 
 TENANT_APPS = (
