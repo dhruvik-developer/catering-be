@@ -1,6 +1,18 @@
 from django.contrib import admin
 
-from .models import EventStaffAssignment, FixedStaffSalaryPayment, Staff
+from .models import (
+    EventStaffAssignment,
+    FixedStaffSalaryPayment,
+    Staff,
+    StaffRolePermissionAssignment,
+)
+
+
+@admin.register(StaffRolePermissionAssignment)
+class StaffRolePermissionAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("role", "permission", "updated_at")
+    list_filter = ("permission__module",)
+    search_fields = ("role__name", "permission__code")
 
 
 @admin.register(Staff)

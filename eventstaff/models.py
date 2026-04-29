@@ -37,6 +37,28 @@ class StaffRole(models.Model):
         return self.name
 
 
+class StaffRolePermissionAssignment(models.Model):
+    role = models.ForeignKey(
+        StaffRole,
+        on_delete=models.CASCADE,
+        related_name="permission_assignments",
+    )
+    permission = models.ForeignKey(
+        "accesscontrol.AccessPermission",
+        on_delete=models.CASCADE,
+        related_name="staff_role_assignments",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("role", "permission")
+        ordering = ("role__name", "permission__code")
+
+    def __str__(self):
+        return f"{self.role.name} -> {self.permission.code}"
+
+
 class WaiterType(models.Model):
     name = models.CharField("Waiter Type", max_length=120, unique=True)
     description = models.TextField("Description", blank=True, null=True)

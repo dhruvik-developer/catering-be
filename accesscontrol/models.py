@@ -62,25 +62,3 @@ class UserPermissionAssignment(models.Model):
     def __str__(self):
         state = "allow" if self.is_allowed else "deny"
         return f"{self.user.username} -> {self.permission.code} ({state})"
-
-
-class StaffRolePermissionAssignment(models.Model):
-    role = models.ForeignKey(
-        "eventstaff.StaffRole",
-        on_delete=models.CASCADE,
-        related_name="permission_assignments",
-    )
-    permission = models.ForeignKey(
-        AccessPermission,
-        on_delete=models.CASCADE,
-        related_name="staff_role_assignments",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ("role", "permission")
-        ordering = ("role__name", "permission__code")
-
-    def __str__(self):
-        return f"{self.role.name} -> {self.permission.code}"

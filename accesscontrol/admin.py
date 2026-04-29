@@ -3,7 +3,6 @@ from django.contrib import admin
 from accesscontrol.models import (
     AccessPermission,
     PermissionModule,
-    StaffRolePermissionAssignment,
     UserPermissionAssignment,
 )
 
@@ -29,10 +28,3 @@ class UserPermissionAssignmentAdmin(admin.ModelAdmin):
     list_display = ("user", "permission", "is_allowed", "updated_at")
     list_filter = ("is_allowed", "permission__module")
     search_fields = ("user__username", "permission__code")
-
-
-@admin.register(StaffRolePermissionAssignment)
-class StaffRolePermissionAssignmentAdmin(admin.ModelAdmin):
-    list_display = ("role", "permission", "updated_at")
-    list_filter = ("permission__module",)
-    search_fields = ("role__name", "permission__code")
