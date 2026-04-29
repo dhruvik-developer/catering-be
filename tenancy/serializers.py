@@ -12,6 +12,14 @@ UserModel = get_user_model()
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    modules = serializers.SlugRelatedField(
+        many=True,
+        slug_field="code",
+        queryset=PermissionModule.objects.filter(is_active=True),
+        source="included_modules",
+        required=False,
+    )
+
     class Meta:
         model = SubscriptionPlan
         fields = [
@@ -22,7 +30,9 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "price",
             "billing_cycle",
             "max_users",
+            "trial_days",
             "is_active",
+            "modules",
             "created_at",
             "updated_at",
         ]

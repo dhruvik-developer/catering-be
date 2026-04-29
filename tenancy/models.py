@@ -36,6 +36,7 @@ class SubscriptionPlan(models.Model):
         default=0,
         help_text="0 means unlimited users.",
     )
+    trial_days = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     included_modules = models.ManyToManyField(
         "accesscontrol.PermissionModule",
