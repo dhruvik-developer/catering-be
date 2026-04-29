@@ -6,7 +6,11 @@ from accesscontrol.models import (
     PermissionModule,
     UserPermissionAssignment,
 )
-from radha.Utils.permissions import get_effective_permission_codes
+from radha.Utils.permissions import (
+    get_effective_permission_codes,
+    get_tenant_enabled_module_codes,
+    get_user_active_tenant,
+)
 
 
 UserModel = get_user_model()
@@ -94,13 +98,25 @@ class PermissionSubjectSerializer(serializers.ModelSerializer):
         return None
 
     def get_tenant_id(self, obj):
-        return str(obj.tenant_id) if obj.tenant_id else None
+        tenant = self._get_context_tenant(obj)
+        return str(tenant.id) if tenant else None
 
     def get_tenant_name(self, obj):
-        return obj.tenant.name if obj.tenant_id else None
+        tenant = self._get_context_tenant(obj)
+        return tenant.name if tenant else None
 
     def get_effective_permissions(self, obj):
         return sorted(get_effective_permission_codes(obj))
+
+    def _get_context_tenant(self, obj):
+        context_tenant = self.context.get("tenant")
+        if context_tenant is not None:
+            return context_tenant
+        request = self.context.get("request")
+        tenant = getattr(request, "tenant", None)
+        if tenant is not None and getattr(tenant, "schema_name", "public") != "public":
+            return tenant
+        return get_user_active_tenant(obj)
 
 
 class UserPermissionAssignmentWriteSerializer(serializers.Serializer):
@@ -142,16 +158,14 @@ class UserPermissionAssignmentWriteSerializer(serializers.Serializer):
             )
 
         request = self.context.get("request")
-        tenant = getattr(getattr(request, "user", None), "tenant", None)
+        tenant = get_user_active_tenant(getattr(request, "user", None))
         if tenant:
             if not tenant.has_active_subscription:
                 raise serializers.ValidationError(
                     {"tenant": "Tenant subscription is not active."}
                 )
 
-            enabled_modules = set(
-                tenant.enabled_modules.filter(is_active=True).values_list("code", flat=True)
-            )
+            enabled_modules = get_tenant_enabled_module_codes(request.user)
             disallowed_codes = set(
                 AccessPermission.objects.filter(code__in=allowed | denied)
                 .exclude(module__code__in=enabled_modules)
@@ -177,20 +191,19 @@ class UserPermissionAssignmentDetailSerializer(serializers.Serializer):
     effective_permissions = serializers.ListField(child=serializers.CharField(), read_only=True)
 
 
-def build_user_permission_payload(user):
+def build_user_permission_payload(user, tenant=None):
     assignment_qs = UserPermissionAssignment.objects.filter(user=user).select_related(
         "permission", "permission__module"
     )
-    if user.tenant_id:
-        enabled_modules = user.tenant.enabled_modules.filter(is_active=True).values_list(
-            "code", flat=True
-        )
+    if tenant is not None:
+        user._active_tenant = tenant
+        enabled_modules = get_tenant_enabled_module_codes(user)
         assignment_qs = assignment_qs.filter(permission__module__code__in=enabled_modules)
 
     direct_permissions = list(assignment_qs.values("permission__code", "is_allowed"))
 
     return {
-        "user": PermissionSubjectSerializer(user).data,
+        "user": PermissionSubjectSerializer(user, context={"tenant": tenant}).data,
         "direct_permissions": [
             {"code": row["permission__code"], "is_allowed": row["is_allowed"]}
             for row in direct_permissions

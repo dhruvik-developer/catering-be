@@ -1,47 +1,35 @@
+from django.db import connection
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
-from user.models import Tenant
-from user.tenanting import activate_schema, normalize_schema_name, reset_schema
 
 
 class TenantJWTAuthentication(JWTAuthentication):
     """
-    JWT auth that activates the customer's PostgreSQL schema for the request.
+    JWT auth for django-tenants.
 
-    Platform superusers normally stay in the public schema. They can inspect a
-    tenant schema by sending X-Tenant-Schema: <schema_name>.
+    Tenant selection happens before authentication in TenantMainMiddleware.
+    The token must belong to the same schema as the current request host.
     """
 
     def authenticate(self, request):
         result = super().authenticate(request)
         if result is None:
-            reset_schema()
-            request.tenant = None
             return None
 
         user, token = result
-        tenant = getattr(user, "tenant", None)
-        requested_schema = request.headers.get("X-Tenant-Schema")
+        request_schema = getattr(connection, "schema_name", "public")
+        token_schema = token.get("schema_name")
+        tenant = getattr(request, "tenant", None)
 
-        if user.is_superuser and requested_schema:
-            try:
-                schema_name = normalize_schema_name(requested_schema)
-            except ValueError as exc:
-                raise AuthenticationFailed(str(exc)) from exc
+        if token_schema and token_schema != request_schema:
+            raise AuthenticationFailed("Token tenant does not match request tenant.")
 
-            tenant = Tenant.objects.filter(schema_name=schema_name).first()
+        if request_schema != "public":
             if tenant is None:
-                raise AuthenticationFailed("Tenant schema not found.")
+                raise AuthenticationFailed("Tenant not resolved for request.")
+            if not getattr(tenant, "has_active_subscription", True):
+                raise AuthenticationFailed("Tenant subscription is not active.")
 
-        if tenant is None:
-            reset_schema()
-            request.tenant = None
-            return user, token
-
-        if not user.is_superuser and not tenant.has_active_subscription:
-            raise AuthenticationFailed("Tenant subscription is not active.")
-
-        activate_schema(tenant.schema_name)
+        user._active_tenant = tenant if request_schema != "public" else None
         request.tenant = tenant
         return user, token

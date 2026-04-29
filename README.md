@@ -24,6 +24,7 @@ routes, admin coverage, and inactive module notes, see
 ```text
 radha-be/
 |- radha/                   # Django project settings, root URLs, middleware, utils
+|- tenancy/                 # django-tenants client/domain/subscription management
 |- accesscontrol/           # Access-control modules and user permission assignments
 |- user/                    # Auth/login, users, notes, business profile
 |- category/                # Menu categories
@@ -31,6 +32,7 @@ radha-be/
 |- ListOfIngridients/       # Ingredient categories/items (legacy spelling kept)
 |- stockmanagement/         # Stock categories/items and quantity operations
 |- eventbooking/            # Event bookings, sessions, item configs, vendor assignments
+|- pdfformatter/            # Stored HTML templates used for PDF formatter views
 |- eventstaff/              # Roles, staff, waiter types, assignments, salary/withdrawals
 |- groundmanagement/        # Ground categories/items
 |- payments/                # Payments and transactions
@@ -89,15 +91,17 @@ Main variables:
 - `DJANGO_DEBUG`
 - `DJANGO_ALLOWED_HOSTS`
 - `CORS_ALLOWED_ORIGINS`
+- `CORS_ALLOWED_ORIGIN_REGEXES`
 - `CORS_ALLOW_ALL_ORIGINS`
 - `DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
-- `SQLITE_NAME` (optional local SQLite file path; defaults to `db.sqlite3`)
+- `SAAS_ROOT_DOMAIN`
+- `SHOW_PUBLIC_IF_NO_TENANT_FOUND`
 - `JWT_SIGNING_KEY`
 
 ### 4. Apply migrations
 
 ```bash
-python manage.py migrate
+python manage.py migrate_schemas --shared
 ```
 
 ### 5. Sync permissions
@@ -117,10 +121,10 @@ python manage.py sync_permissions --print-catalog
 ### 6. Run development server
 
 ```bash
-python manage.py runserver
+python manage.py runserver 0.0.0.0:8000
 ```
 
-Base URL: `http://127.0.0.1:8000`  
+Base URL: `http://admin.localhost:8000` or `http://client1.localhost:8000`  
 API prefix: `/api/`
 
 ## Authentication
@@ -134,30 +138,49 @@ Authorization: Bearer <access_token>
 
 ## SaaS / Tenant Mode
 
-The backend now supports platform-owned SaaS accounts:
+The backend uses `django-tenants` for subdomain-based PostgreSQL schema isolation:
 
-- Platform superadmin users live in the public schema and manage tenants.
-- Each tenant has a subscription, enabled modules, and a PostgreSQL schema name.
-- Tenant users belong to one tenant. Their JWT requests activate that tenant schema, so normal CRUD queries read/write only that tenant schema.
-- Tenant admins can create tenant users and assign module permissions.
-- SQLite remains usable for local development, but true schema isolation requires PostgreSQL.
+- `admin.trayza.in` maps to the `public` schema for platform superadmin work.
+- `client1.trayza.in` maps to schema `client1`.
+- Tenant business data is isolated by PostgreSQL `search_path`; API views should not manually filter by `tenant_id`.
+- Login is tenant-aware because the subdomain resolves the schema before authentication.
+- JWTs include `schema_name` and are rejected on the wrong tenant host.
 
 For PostgreSQL schema-per-tenant mode, set:
 
 ```env
-DB_ENGINE=django.db.backends.postgresql
+DB_ENGINE=django_tenants.postgresql_backend
 DB_NAME=radha
 DB_USER=postgres
 DB_PASSWORD=your-password
 DB_HOST=localhost
 DB_PORT=5432
+SAAS_ROOT_DOMAIN=trayza.in
+SHOW_PUBLIC_IF_NO_TENANT_FOUND=False
 ```
 
-After migrating public tables and syncing permissions:
+Local hosts file for subdomain testing on Windows:
 
-```bash
-python manage.py migrate
+```text
+127.0.0.1 admin.localhost
+127.0.0.1 client1.localhost
+127.0.0.1 client2.localhost
+```
+
+Bootstrap public and default tenant domains:
+
+```powershell
+python manage.py migrate_schemas --shared
+python manage.py bootstrap_saas --public-domain admin.localhost --default-schema client1 --default-domain client1.localhost --default-name "Client 1"
 python manage.py sync_permissions
+```
+
+For an existing single-tenant database, copy current public business rows into the default tenant schema after the tenant exists:
+
+```powershell
+python manage.py copy_public_to_tenant --schema client1 --dry-run
+python manage.py copy_public_to_tenant --schema client1
+python manage.py migrate_schemas --tenant
 ```
 
 Create a tenant and its first tenant admin:
@@ -170,6 +193,7 @@ Content-Type: application/json
 {
   "name": "Radha Catering",
   "schema_name": "radha",
+  "domain": "radha.trayza.in",
   "subscription_status": "active",
   "enabled_modules": ["categories", "items", "event_bookings", "users"],
   "admin": {
@@ -180,7 +204,9 @@ Content-Type: application/json
 }
 ```
 
-On PostgreSQL this creates schema `radha` and runs tenant migrations there. On SQLite, the tenant is created with `schema_status=skipped` because SQLite has no schemas.
+This creates the PostgreSQL schema, stores the domain mapping, and creates the tenant admin inside the tenant schema.
+
+Migration bridge note: existing legacy migrations contain cross-app dependencies that require public to retain some business tables during the transition. Runtime isolation still happens through tenant schemas. A later cleanup should squash/split those legacy migrations so public contains only platform tables.
 
 ## API Modules and Endpoints
 
@@ -259,6 +285,12 @@ All routes are under `/api/`.
 - `GET|POST /payments/`
 - `GET|PUT|DELETE /payments/<int:pk>/`
 - `GET /all-transaction/`
+
+### PDF Formatter
+
+- `GET|POST /pdf-formatters/`
+- `GET|PUT|PATCH|DELETE /pdf-formatters/<int:pk>/`
+- `GET /pdf-formatters/<int:pk>/html/`
 
 ### Expense
 

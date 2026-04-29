@@ -11,10 +11,20 @@ from accesscontrol.serializers import (
     UserPermissionAssignmentWriteSerializer,
     build_user_permission_payload,
 )
-from radha.Utils.permissions import get_effective_permission_codes
+from radha.Utils.permissions import (
+    get_effective_permission_codes,
+    get_tenant_enabled_module_codes,
+)
 
 
 UserModel = get_user_model()
+
+
+def get_request_tenant(request):
+    tenant = getattr(request, "tenant", None)
+    if tenant is not None and getattr(tenant, "schema_name", "public") != "public":
+        return tenant
+    return None
 
 
 class PermissionModuleListAPIView(generics.GenericAPIView):
@@ -27,11 +37,13 @@ class PermissionModuleListAPIView(generics.GenericAPIView):
             permissions__is_active=True,
         ).distinct()
 
-        if self.request.user.is_superuser:
+        tenant = get_request_tenant(self.request)
+        if self.request.user.is_superuser and tenant is None:
             return queryset
-        if self.request.user.tenant_id:
-            return queryset.filter(tenants=self.request.user.tenant).distinct()
-        return queryset.none()
+        if tenant is not None:
+            enabled_codes = get_tenant_enabled_module_codes(self.request.user)
+            return queryset.filter(code__in=enabled_codes).distinct()
+        return queryset if self.request.user.is_staff else queryset.none()
 
     def get(self, request):
         serializer = self.get_serializer(self.get_queryset(), many=True)
@@ -51,14 +63,10 @@ class PermissionSubjectListAPIView(generics.GenericAPIView):
 
     def get_queryset(self):
         queryset = (
-            UserModel.objects.select_related("staff_profile__role", "vendor_profile", "tenant")
+            UserModel.objects.select_related("staff_profile__role", "vendor_profile")
             .filter(is_superuser=False)
             .order_by("username")
         )
-        if not self.request.user.is_superuser:
-            if not self.request.user.tenant_id:
-                return queryset.none()
-            queryset = queryset.filter(tenant=self.request.user.tenant)
 
         user_type = self.request.query_params.get("user_type")
 
@@ -90,19 +98,17 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
         queryset = UserModel.objects.select_related(
             "staff_profile__role",
             "vendor_profile",
-            "tenant",
         )
-        if not self.request.user.is_superuser:
-            queryset = queryset.filter(tenant=self.request.user.tenant)
         return get_object_or_404(queryset, id=user_id)
 
     def get(self, request, user_id):
         user = self.get_user(user_id)
+        tenant = get_request_tenant(request)
         return Response(
             {
                 "status": True,
                 "message": "User permissions fetched successfully.",
-                "data": build_user_permission_payload(user),
+                "data": build_user_permission_payload(user, tenant=tenant),
             },
             status=status.HTTP_200_OK,
         )
@@ -118,10 +124,9 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
 
         assignment_qs = user.permission_assignments.all()
         permission_qs = AccessPermission.objects.filter(code__in=requested_codes)
-        if self.request.user.tenant_id:
-            enabled_modules = self.request.user.tenant.enabled_modules.filter(
-                is_active=True
-            ).values_list("code", flat=True)
+        tenant = get_request_tenant(self.request)
+        if tenant is not None:
+            enabled_modules = get_tenant_enabled_module_codes(self.request.user)
             assignment_qs = assignment_qs.filter(
                 permission__module__code__in=enabled_modules
             )
@@ -146,7 +151,10 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
             {
                 "status": True,
                 "message": "User permissions updated successfully.",
-                "data": build_user_permission_payload(user),
+                "data": build_user_permission_payload(
+                    user,
+                    tenant=get_request_tenant(request),
+                ),
             },
             status=status.HTTP_200_OK,
         )
@@ -156,6 +164,7 @@ class MyPermissionAPIView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        tenant = get_request_tenant(request)
         return Response(
             {
                 "status": True,
@@ -163,8 +172,8 @@ class MyPermissionAPIView(generics.GenericAPIView):
                 "data": {
                     "user_id": str(request.user.id),
                     "username": request.user.username,
-                    "tenant_id": str(request.user.tenant_id) if request.user.tenant_id else None,
-                    "tenant_name": request.user.tenant.name if request.user.tenant_id else None,
+                    "tenant_id": str(tenant.id) if tenant else None,
+                    "tenant_name": tenant.name if tenant else None,
                     "permissions": sorted(get_effective_permission_codes(request.user)),
                 },
             },

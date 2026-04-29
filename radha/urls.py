@@ -26,12 +26,14 @@ admin.site.index_title = "Control Panel"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/", include("tenancy.urls")),
     path("api/", include("accesscontrol.urls")),
     path("api/", include("category.urls")),
     path("api/", include("eventbooking.urls")),
     path("api/", include("item.urls")),
     path("api/", include("ListOfIngridients.urls")),
     path("api/", include("payments.urls")),
+    path("api/", include("pdfformatter.urls")),
     path("api/", include("stockmanagement.urls")),
     path("api/", include("user.urls")),
     path("api/", include("Expense.urls")),

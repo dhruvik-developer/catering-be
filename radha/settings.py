@@ -61,6 +61,10 @@ CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS",
     "http://localhost:5173,https://radhika-admin.evenmore.in",
 )
+CORS_ALLOWED_ORIGIN_REGEXES = env_list(
+    "CORS_ALLOWED_ORIGIN_REGEXES",
+    r"^http://.*\.localhost:5173$,^https://.*\.trayza\.in$",
+)
 CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", False)
 
 # Allow specific HTTP methods
@@ -76,7 +80,9 @@ CORS_ALLOW_HEADERS = [
 
 # Application definition
 
-INSTALLED_APPS = [
+SHARED_APPS = (
+    "django_tenants",
+    "tenancy",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -86,30 +92,72 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "rest_framework.authtoken",
-    "accesscontrol",
-    "category",
     "django_filters",
+    "accesscontrol",
+    "user",
+    # Legacy migration bridge: some shared-era migrations depend on business
+    # apps. These tables remain in public until the legacy migrations are
+    # squashed/split, while tenant schemas still provide the isolated runtime.
+    "category",
     "eventbooking",
     "item",
     "ListOfIngridients",
     "payments",
+    "pdfformatter",
     "stockmanagement",
+    "Expense",
+    "vendor",
+    "eventstaff",
+    "groundmanagement",
+)
+
+TENANT_APPS = (
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "corsheaders",
+    "rest_framework.authtoken",
+    "django_filters",
+    "accesscontrol",
     "user",
+    "category",
+    "eventbooking",
+    "item",
+    "ListOfIngridients",
+    "payments",
+    "pdfformatter",
+    "stockmanagement",
     "Expense",
     "vendor",
     "eventstaff",
     "groundmanagement",
     # "branchmanagement",
+)
+
+INSTALLED_APPS = list(SHARED_APPS) + [
+    app for app in TENANT_APPS if app not in SHARED_APPS
 ]
+
+TENANT_MODEL = "tenancy.Client"
+TENANT_DOMAIN_MODEL = "tenancy.Domain"
+PUBLIC_SCHEMA_NAME = "public"
+PUBLIC_SCHEMA_URLCONF = "radha.urls"
+SHOW_PUBLIC_IF_NO_TENANT_FOUND = env_bool("SHOW_PUBLIC_IF_NO_TENANT_FOUND", DEBUG)
+DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",)
+SAAS_ROOT_DOMAIN = get_env("SAAS_ROOT_DOMAIN", "localhost")
 
 
 MIDDLEWARE = [
+    "django_tenants.middleware.main.TenantMainMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "radha.middleware.ApiNotFoundMiddleware",
-    "radha.middleware.TenantSchemaMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -140,7 +188,15 @@ WSGI_APPLICATION = "radha.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DB_ENGINE = get_env("DB_ENGINE", "django.db.backends.sqlite3")
+RAW_DB_ENGINE = get_env("DB_ENGINE", "django_tenants.postgresql_backend")
+DB_ENGINE = (
+    "django_tenants.postgresql_backend"
+    if RAW_DB_ENGINE in {
+        "django.db.backends.postgresql",
+        "django_tenants.postgresql_backend",
+    }
+    else RAW_DB_ENGINE
+)
 
 if DB_ENGINE == "django.db.backends.sqlite3":
     DATABASES = {
@@ -158,9 +214,6 @@ else:
             "PASSWORD": get_env("DB_PASSWORD", ""),
             "HOST": get_env("DB_HOST", "localhost"),
             "PORT": get_env("DB_PORT", "5432"),
-            "OPTIONS": {
-                "options": "-c search_path=public",
-            },
         }
     }
 
@@ -181,6 +234,7 @@ SAAS_TENANT_APPS = (
     "vendor",
     "eventbooking",
     "payments",
+    "pdfformatter",
     "stockmanagement",
     "Expense",
     "eventstaff",

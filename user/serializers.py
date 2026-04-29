@@ -5,6 +5,8 @@ from accesscontrol.models import (
     PermissionModule,
     UserPermissionAssignment,
 )
+from radha.Utils.permissions import get_tenant_enabled_module_codes, get_user_active_tenant
+from tenancy.serializers import ClientSummarySerializer
 from user.tenanting import normalize_schema_name, provision_tenant_schema
 
 from .models import BusinessProfile, Note, SubscriptionPlan, Tenant, UserModel
@@ -237,7 +239,7 @@ class TenantSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    tenant = TenantSummarySerializer(read_only=True)
+    tenant = serializers.SerializerMethodField()
     tenant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     is_staff = serializers.BooleanField(required=False, default=False)
     module_codes = serializers.ListField(
@@ -277,18 +279,24 @@ class UserCreateSerializer(serializers.ModelSerializer):
             raise PermissionDenied("Authentication required.")
 
         actor = request.user
+        active_tenant = getattr(request, "tenant", None)
+        if (
+            active_tenant is not None
+            and getattr(active_tenant, "schema_name", "public") != "public"
+        ):
+            if actor.is_staff:
+                if attrs.get("is_staff"):
+                    raise PermissionDenied(
+                        "Tenant admin cannot create another admin user."
+                    )
+                actor._active_tenant = active_tenant
+                return active_tenant
+            raise PermissionDenied("Only tenant admin can create this resource.")
+
         if actor.is_superuser:
-            tenant_id = attrs.get("tenant_id")
-            if tenant_id:
-                try:
-                    return Tenant.objects.get(id=tenant_id)
-                except Tenant.DoesNotExist as exc:
-                    raise serializers.ValidationError(
-                        {"tenant_id": "Tenant not found."}
-                    ) from exc
             return None
 
-        if actor.is_staff and actor.tenant_id:
+        if actor.is_staff and getattr(actor, "tenant_id", None):
             if attrs.get("is_staff"):
                 raise PermissionDenied("Tenant admin cannot create another admin user.")
             return actor.tenant
@@ -300,7 +308,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
             return
 
         max_users = tenant.subscription_plan.max_users
-        if max_users and tenant.users.count() >= max_users:
+        user_count = tenant.users.count() if hasattr(tenant, "users") else UserModel.objects.count()
+        if max_users and user_count >= max_users:
             raise serializers.ValidationError(
                 {"tenant_id": "Tenant subscription user limit reached."}
             )
@@ -350,9 +359,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 {"tenant_id": "Tenant subscription is not active."}
             )
 
-        enabled_modules = set(
-            tenant.enabled_modules.filter(is_active=True).values_list("code", flat=True)
-        )
+        actor = self.context.get("request").user
+        actor._active_tenant = tenant
+        enabled_modules = get_tenant_enabled_module_codes(actor)
         disallowed_modules = requested_module_codes - enabled_modules
         disallowed_permissions = {
             permission.code
@@ -397,15 +406,20 @@ class UserCreateSerializer(serializers.ModelSerializer):
         allowed_permissions = set(validated_data.pop("allowed_permissions", []))
         validated_data.pop("tenant_id", None)
 
+        create_kwargs = {
+            "username": validated_data["username"],
+            "email": validated_data.get("email", ""),
+            "password": validated_data["password"],
+            "first_name": validated_data.get("first_name", ""),
+            "last_name": validated_data.get("last_name", ""),
+            "is_staff": validated_data.get("is_staff", False),
+            "is_active": validated_data.get("is_active", True),
+        }
+        if tenant is not None and hasattr(tenant, "users"):
+            create_kwargs["tenant"] = tenant
+
         user = UserModel.objects.create_user(
-            username=validated_data["username"],
-            email=validated_data.get("email", ""),
-            password=validated_data["password"],
-            first_name=validated_data.get("first_name", ""),
-            last_name=validated_data.get("last_name", ""),
-            is_staff=validated_data.get("is_staff", False),
-            is_active=validated_data.get("is_active", True),
-            tenant=tenant,
+            **create_kwargs,
         )
 
         permission_codes = set(allowed_permissions)
@@ -427,6 +441,17 @@ class UserCreateSerializer(serializers.ModelSerializer):
             )
 
         return user
+
+    def get_tenant(self, obj):
+        request = self.context.get("request")
+        tenant = getattr(request, "tenant", None)
+        if tenant is None or getattr(tenant, "schema_name", "public") == "public":
+            tenant = get_user_active_tenant(obj)
+        if tenant is None or not hasattr(tenant, "schema_name"):
+            return None
+        if not hasattr(tenant, "get_primary_domain"):
+            return TenantSummarySerializer(tenant).data
+        return ClientSummarySerializer(tenant).data
 
     def validate_password(self, value):
         if len(value) < MIN_PASSWORD_LENGTH:

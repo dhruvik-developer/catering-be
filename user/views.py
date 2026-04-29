@@ -19,6 +19,7 @@ from .serializers import (
 from django.shortcuts import get_object_or_404
 from radha.Utils.permissions import IsAdminUserOrReadOnly, user_has_permission, get_effective_permission_codes
 from user.tenanting import provision_tenant_schema
+from tenancy.serializers import ClientSummarySerializer
 
 
 class IsPlatformAdmin(BasePermission):
@@ -45,7 +46,14 @@ class LoginViewSet(generics.GenericAPIView):
         password = request.data.get("password")
         user = authenticate(request, username=username, password=password)
         if user:
-            if user.tenant and not user.tenant.has_active_subscription:
+            tenant = getattr(request, "tenant", None)
+            if tenant is not None and getattr(tenant, "schema_name", "public") == "public":
+                tenant = None
+
+            if tenant is not None:
+                user._active_tenant = tenant
+
+            if tenant is not None and not tenant.has_active_subscription:
                 return Response(
                     {
                         "status": False,
@@ -69,8 +77,8 @@ class LoginViewSet(generics.GenericAPIView):
                 "user_type": user_type,
                 "permissions": sorted(get_effective_permission_codes(user)),
                 "tenant": (
-                    TenantSummarySerializer(user.tenant).data
-                    if user.tenant_id
+                    ClientSummarySerializer(tenant).data
+                    if tenant is not None
                     else None
                 ),
                 "tokens": user.tokens,
@@ -173,13 +181,26 @@ class UserCreateAPIView(generics.GenericAPIView):
     permission_resource = "users"
 
     def _can_manage_users(self, user):
+        request_tenant = getattr(self.request, "tenant", None)
+        if (
+            request_tenant is not None
+            and getattr(request_tenant, "schema_name", "public") != "public"
+        ):
+            return bool(user.is_staff)
+
         return bool(
             user.is_superuser
             or (user.is_staff and getattr(user, "tenant_id", None))
         )
 
     def get_queryset(self):
-        queryset = UserModel.objects.select_related("tenant").all()
+        queryset = UserModel.objects.all()
+        request_tenant = getattr(self.request, "tenant", None)
+        if (
+            request_tenant is not None
+            and getattr(request_tenant, "schema_name", "public") != "public"
+        ):
+            return queryset.order_by("username")
         if self.request.user.is_superuser:
             return queryset.order_by("username")
         if self.request.user.is_staff and self.request.user.tenant_id:
@@ -487,7 +508,13 @@ class ChangePasswordAPIView(generics.GenericAPIView):
                     status=status.HTTP_200_OK,
                 )
 
-            if request.user.tenant_id and user.tenant_id != request.user.tenant_id:
+            request_tenant = getattr(request, "tenant", None)
+            if (
+                request_tenant is not None
+                and getattr(request_tenant, "schema_name", "public") != "public"
+            ):
+                pass
+            elif request.user.tenant_id and user.tenant_id != request.user.tenant_id:
                 return Response(
                     {
                         "status": False,

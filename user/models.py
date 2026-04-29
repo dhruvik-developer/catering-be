@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+from django.db import connection
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 import uuid
@@ -168,6 +169,10 @@ class UserModel(AbstractUser):
     @property
     def tokens(self):
         refresh = RefreshToken.for_user(self)
+        schema_name = getattr(connection, "schema_name", "public")
+        tenant = getattr(connection, "tenant", None)
+        refresh["schema_name"] = schema_name
+        refresh["tenant_domain"] = getattr(tenant, "domain_url", None) or ""
         return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
     class Meta:

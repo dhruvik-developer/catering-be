@@ -1,6 +1,11 @@
 # permissions.py
 from rest_framework.permissions import IsAuthenticated, BasePermission, SAFE_METHODS
 
+try:
+    from django_tenants.utils import schema_context
+except Exception:  # pragma: no cover
+    schema_context = None
+
 
 HTTP_METHOD_PERMISSION_MAP = {
     "GET": "view",
@@ -56,7 +61,7 @@ def get_effective_permission_codes(user, refresh=False):
 
     from accesscontrol.models import AccessPermission, UserPermissionAssignment
 
-    tenant = getattr(user, "tenant", None)
+    tenant = get_user_active_tenant(user)
     if tenant and not tenant.has_active_subscription:
         user._effective_permission_codes_cache = set()
         return set()
@@ -110,27 +115,36 @@ def user_has_permission(user, permission_code):
 
 
 def get_tenant_enabled_module_codes(user, refresh=False):
-    tenant = getattr(user, "tenant", None)
+    tenant = get_user_active_tenant(user)
     if tenant is None:
         return None
 
     if not refresh and hasattr(user, "_tenant_enabled_module_codes_cache"):
         return user._tenant_enabled_module_codes_cache
 
-    module_codes = set(
-        tenant.enabled_modules.filter(is_active=True).values_list("code", flat=True)
-    )
+    if schema_context is None:
+        module_codes = set(
+            tenant.enabled_modules.filter(is_active=True).values_list("code", flat=True)
+        )
+    else:
+        with schema_context("public"):
+            module_codes = set(
+                tenant.enabled_modules.filter(is_active=True).values_list(
+                    "code",
+                    flat=True,
+                )
+            )
     user._tenant_enabled_module_codes_cache = module_codes
     return module_codes
 
 
 def tenant_subscription_allows_access(user):
-    tenant = getattr(user, "tenant", None)
+    tenant = get_user_active_tenant(user)
     return tenant is None or tenant.has_active_subscription
 
 
 def tenant_can_use_permissions(user, permission_codes):
-    tenant = getattr(user, "tenant", None)
+    tenant = get_user_active_tenant(user)
     if tenant is None:
         return True
     if not tenant.has_active_subscription:
@@ -168,10 +182,10 @@ class IsAdminUserOrReadOnly(IsAuthenticated):
         if not tenant_subscription_allows_access(request.user):
             return False
 
-        if request.method in SAFE_METHODS:
-            return True
-
         required_codes = get_required_permission_codes(request, view)
+
+        if request.method in SAFE_METHODS and not required_codes:
+            return True
 
         if request.user.is_superuser:
             return True
@@ -183,6 +197,13 @@ class IsAdminUserOrReadOnly(IsAuthenticated):
             return all(user_has_permission(request.user, code) for code in required_codes)
 
         return False
+
+
+def get_user_active_tenant(user):
+    tenant = getattr(user, "_active_tenant", None)
+    if tenant is not None:
+        return tenant
+    return getattr(user, "tenant", None)
 
 
 class IsOwnerOrAdmin(BasePermission):
@@ -236,4 +257,3 @@ class IsOwnerOrAdmin(BasePermission):
             
         # Allow if owner
         return hasattr(obj, 'user') and obj.user == request.user
-

@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.db import connection
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -9,7 +8,8 @@ from accesscontrol.models import (
     PermissionModule,
     UserPermissionAssignment,
 )
-from user.models import Tenant
+from django_tenants.utils import schema_context
+from tenancy.models import Client, Domain
 
 
 UserModel = get_user_model()
@@ -155,31 +155,39 @@ class TenantSaaSTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["data"]["schema_name"], "radha")
-        expected_schema_status = (
-            Tenant.SCHEMA_READY
-            if connection.vendor == "postgresql"
-            else Tenant.SCHEMA_SKIPPED
-        )
-        self.assertEqual(response.data["data"]["schema_status"], expected_schema_status)
+        self.assertEqual(response.data["data"]["schema_status"], "ready")
 
-        tenant = Tenant.objects.get(schema_name="radha")
-        tenant_admin = UserModel.objects.get(username="radha-admin")
-        self.assertEqual(tenant_admin.tenant, tenant)
-        self.assertTrue(tenant_admin.is_staff)
+        tenant = Client.objects.get(schema_name="radha")
+        self.assertEqual(tenant.get_primary_domain().domain, "radha.localhost")
+        with schema_context("radha"):
+            tenant_admin = UserModel.objects.get(username="radha-admin")
+            self.assertTrue(tenant_admin.is_staff)
 
     def test_tenant_admin_can_create_module_scoped_user(self):
-        tenant = Tenant.objects.create(
+        tenant = Client.objects.create(
             name="Radha",
             schema_name="radha",
-            subscription_status=Tenant.STATUS_ACTIVE,
+            subscription_status=Client.STATUS_ACTIVE,
         )
+        Domain.objects.create(tenant=tenant, domain="radha.localhost", is_primary=True)
         tenant.enabled_modules.set([self.category_module, self.users_module])
-        tenant_admin = UserModel.objects.create_user(
-            username="radha-admin",
-            password="admin1234",
-            is_staff=True,
-            tenant=tenant,
-        )
+
+        with schema_context("radha"):
+            category_module, _ = PermissionModule.objects.get_or_create(
+                code="categories",
+                defaults={"name": "Categories"},
+            )
+            AccessPermission.objects.get_or_create(
+                module=category_module,
+                code="categories.view",
+                defaults={"action": "view", "name": "View categories"},
+            )
+            tenant_admin = UserModel.objects.create_user(
+                username="radha-admin",
+                password="admin1234",
+                is_staff=True,
+            )
+
         self.client.force_authenticate(user=tenant_admin)
 
         response = self.client.post(
@@ -191,15 +199,16 @@ class TenantSaaSTests(TestCase):
                 "module_codes": ["categories"],
             },
             format="json",
+            HTTP_HOST="radha.localhost",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        created_user = UserModel.objects.get(username="radha-manager")
-        self.assertEqual(created_user.tenant, tenant)
-        self.assertTrue(
-            UserPermissionAssignment.objects.filter(
-                user=created_user,
-                permission__code="categories.view",
-                is_allowed=True,
-            ).exists()
-        )
+        with schema_context("radha"):
+            created_user = UserModel.objects.get(username="radha-manager")
+            self.assertTrue(
+                UserPermissionAssignment.objects.filter(
+                    user=created_user,
+                    permission__code="categories.view",
+                    is_allowed=True,
+                ).exists()
+            )
