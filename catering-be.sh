@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-APP_DIR="${APP_DIR:-/root/trayza-be}"
+APP_DIR="${APP_DIR:-/root/catering-be}"
 VENV_PATH="${VENV_PATH:-.venv/bin/activate}"
 GUNICORN_BIND="${GUNICORN_BIND:-127.0.0.1:8009}"
 
