@@ -8,7 +8,10 @@ from django.contrib.auth import authenticate
 from django.db import connection
 from django.http import JsonResponse
 from .models import UserModel, Note, BusinessProfile, SubscriptionPlan
-from tenancy.models import Client as Tenant
+from django_tenants.utils import schema_context, tenant_context
+from tenancy.models import Client as Tenant, Domain
+from tenancy.serializers import ClientSummarySerializer
+from tenancy.utils import normalize_domain, normalize_schema_name
 from .serializers import (
     LoginSerializer,
     NoteSerializer,
@@ -20,9 +23,12 @@ from .serializers import (
     BusinessProfileSerializer,
 )
 from django.shortcuts import get_object_or_404
-from radha.Utils.permissions import IsAdminUserOrReadOnly, user_has_permission, get_effective_permission_codes
+from radha.Utils.permissions import (
+    IsAdminUserOrReadOnly,
+    get_effective_permission_codes,
+    user_has_permission,
+)
 from user.tenanting import provision_tenant_schema
-from tenancy.serializers import ClientSummarySerializer
 
 
 class IsPlatformAdmin(BasePermission):
@@ -47,57 +53,153 @@ class LoginViewSet(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
 
-    def post(self, request):
-        username = request.data.get("username")
-        password = request.data.get("password")
-        user = authenticate(request, username=username, password=password)
-        if user:
-            tenant = getattr(request, "tenant", None)
-            if tenant is not None and getattr(tenant, "schema_name", "public") == "public":
-                tenant = None
+    def _get_request_tenant(self, request):
+        tenant = getattr(request, "tenant", None)
+        if tenant is not None and getattr(tenant, "schema_name", "public") == "public":
+            return None
+        return tenant
 
-            if tenant is not None:
-                user._active_tenant = tenant
+    def _tenant_queryset(self):
+        return Tenant.objects.select_related("subscription_plan").prefetch_related(
+            "enabled_modules"
+        )
 
-            if tenant is not None and not tenant.has_active_subscription:
-                return Response(
-                    {
-                        "status": False,
-                        "message": "Tenant subscription is not active.",
-                        "data": {},
-                    },
-                    status=status.HTTP_403_FORBIDDEN,
+    def _attach_tenant_domain(self, tenant):
+        if getattr(tenant, "domain_url", None):
+            return tenant
+
+        domain = tenant.get_primary_domain()
+        tenant.domain_url = domain.domain if domain else ""
+        return tenant
+
+    def _resolve_tenant_by_schema(self, schema_name):
+        schema_name = normalize_schema_name(schema_name)
+        with schema_context("public"):
+            return self._attach_tenant_domain(
+                self._tenant_queryset().get(schema_name=schema_name)
+            )
+
+    def _resolve_tenant_by_domain(self, domain):
+        domain = normalize_domain(domain)
+        with schema_context("public"):
+            tenant_domain = Domain.objects.select_related(
+                "tenant",
+                "tenant__subscription_plan",
+            ).get(domain=domain)
+            return self._attach_tenant_domain(tenant_domain.tenant)
+
+    def _resolve_requested_tenant(self, data):
+        tenant_id = data.get("tenant_id")
+        if tenant_id:
+            with schema_context("public"):
+                return self._attach_tenant_domain(
+                    self._tenant_queryset().get(id=tenant_id)
                 )
 
-            user_type = "admin" if user.is_superuser or user.is_staff else "user"
-            if getattr(connection, "schema_name", "public") != "public":
-                if hasattr(user, "staff_profile"):
-                    user_type = "staff"
-                elif hasattr(user, "vendor_profile"):
-                    user_type = "vendor"
+        if data.get("domain"):
+            return self._resolve_tenant_by_domain(data["domain"])
 
-            response_data = {
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "email": user.email,
-                "user_type": user_type,
-                "permissions": sorted(get_effective_permission_codes(user)),
-                "tenant": (
-                    ClientSummarySerializer(tenant).data
-                    if tenant is not None
-                    else None
-                ),
-                "tokens": user.tokens,
-            }
+        if data.get("schema_name"):
+            return self._resolve_tenant_by_schema(data["schema_name"])
+
+        identifier = str(data.get("tenant") or "").strip()
+        if not identifier:
+            return None
+
+        if "." in identifier or ":" in identifier or "/" in identifier:
+            return self._resolve_tenant_by_domain(identifier)
+        return self._resolve_tenant_by_schema(identifier)
+
+    def _restore_request_tenant(self, request, previous_tenant):
+        if previous_tenant is None:
+            if hasattr(request, "tenant"):
+                delattr(request, "tenant")
+            return
+        request.tenant = previous_tenant
+
+    def _login_response(self, user, tenant):
+        if tenant is not None:
+            user._active_tenant = tenant
+
+        if tenant is not None and not tenant.has_active_subscription:
             return Response(
                 {
-                    "status": True,
-                    "message": "Login successfully",
-                    "data": response_data,
+                    "status": False,
+                    "message": "Tenant subscription is not active.",
+                    "data": {},
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_403_FORBIDDEN,
             )
+
+        user_type = "admin" if user.is_superuser or user.is_staff else "user"
+        if getattr(connection, "schema_name", "public") != "public":
+            if hasattr(user, "staff_profile"):
+                user_type = "staff"
+            elif hasattr(user, "vendor_profile"):
+                user_type = "vendor"
+
+        response_data = {
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "user_type": user_type,
+            "permissions": sorted(get_effective_permission_codes(user)),
+            "tenant": (
+                ClientSummarySerializer(tenant).data
+                if tenant is not None
+                else None
+            ),
+            "tokens": user.tokens,
+        }
+        return Response(
+            {
+                "status": True,
+                "message": "Login successfully",
+                "data": response_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _authenticate_for_tenant(self, request, tenant, username, password):
+        previous_tenant = getattr(request, "tenant", None)
+        try:
+            request.tenant = tenant
+            with tenant_context(tenant):
+                user = authenticate(request, username=username, password=password)
+                if not user:
+                    return None
+                return self._login_response(user, tenant)
+        finally:
+            self._restore_request_tenant(request, previous_tenant)
+
+    def _tenant_credentials_match(self, request, tenant, username, password):
+        previous_tenant = getattr(request, "tenant", None)
+        try:
+            request.tenant = tenant
+            with tenant_context(tenant):
+                return bool(
+                    authenticate(request, username=username, password=password)
+                )
+        finally:
+            self._restore_request_tenant(request, previous_tenant)
+
+    def _find_matching_tenants(self, request, username, password):
+        matches = []
+        with schema_context("public"):
+            tenants = list(
+                self._tenant_queryset().exclude(schema_name="public").order_by("name")
+            )
+
+        for tenant in tenants:
+            self._attach_tenant_domain(tenant)
+            if self._tenant_credentials_match(request, tenant, username, password):
+                matches.append(tenant)
+                if len(matches) > 1:
+                    break
+        return matches
+
+    def _invalid_login_response(self):
         return Response(
             {
                 "status": False,
@@ -106,6 +208,75 @@ class LoginViewSet(generics.GenericAPIView):
             },
             status=status.HTTP_401_UNAUTHORIZED,
         )
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            error_messages = []
+            for field, errors in serializer.errors.items():
+                error_messages.extend(errors)
+            return Response(
+                {
+                    "status": False,
+                    "message": error_messages[0],
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        username = serializer.validated_data["username"]
+        password = serializer.validated_data["password"]
+
+        try:
+            requested_tenant = self._resolve_requested_tenant(serializer.validated_data)
+        except (Tenant.DoesNotExist, Domain.DoesNotExist, ValueError):
+            return Response(
+                {
+                    "status": False,
+                    "message": "Tenant not found.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if requested_tenant is not None:
+            response = self._authenticate_for_tenant(
+                request,
+                requested_tenant,
+                username,
+                password,
+            )
+            return response or self._invalid_login_response()
+
+        user = authenticate(request, username=username, password=password)
+        if user:
+            return self._login_response(user, self._get_request_tenant(request))
+
+        if self._get_request_tenant(request) is None:
+            matching_tenants = self._find_matching_tenants(request, username, password)
+            if len(matching_tenants) == 1:
+                response = self._authenticate_for_tenant(
+                    request,
+                    matching_tenants[0],
+                    username,
+                    password,
+                )
+                if response is not None:
+                    return response
+            if len(matching_tenants) > 1:
+                return Response(
+                    {
+                        "status": False,
+                        "message": (
+                            "Multiple tenants match these credentials. "
+                            "Please include tenant, schema_name, or domain."
+                        ),
+                        "data": {},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return self._invalid_login_response()
 
 
 class NoteViewSet(generics.GenericAPIView):

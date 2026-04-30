@@ -7,6 +7,7 @@ from accesscontrol.models import (
 )
 from radha.Utils.permissions import get_tenant_enabled_module_codes, get_user_active_tenant
 from tenancy.serializers import ClientSummarySerializer
+from tenancy.services import create_tenant_admin_user
 from user.tenanting import normalize_schema_name, provision_tenant_schema
 
 from tenancy.models import Client, Domain, SubscriptionPlan
@@ -18,6 +19,10 @@ MIN_PASSWORD_LENGTH = 8
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField(required=True)
     password = serializers.CharField(required=True, write_only=True)
+    tenant = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    tenant_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    schema_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    domain = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
 
 class NoteSerializer(serializers.ModelSerializer):
@@ -86,11 +91,6 @@ class TenantAdminCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
             )
-        return value
-
-    def validate_username(self, value):
-        if UserModel.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already exists.")
         return value
 
 
@@ -223,15 +223,16 @@ class TenantSerializer(serializers.ModelSerializer):
         provision_tenant_schema(tenant)
 
         if admin_data:
-            UserModel.objects.create_user(
-                username=admin_data["username"],
-                email=admin_data.get("email", ""),
-                password=admin_data["password"],
-                first_name=admin_data.get("first_name", ""),
-                last_name=admin_data.get("last_name", ""),
-                is_staff=True,
-                tenant=tenant,
-            )
+            try:
+                create_tenant_admin_user(tenant, admin_data)
+            except ValueError as exc:
+                raise serializers.ValidationError(
+                    {"admin": {"username": str(exc)}}
+                ) from exc
+            except RuntimeError as exc:
+                raise serializers.ValidationError(
+                    {"admin": "Tenant admin user was not created in tenant schema."}
+                ) from exc
 
         return tenant
 

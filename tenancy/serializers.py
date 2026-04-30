@@ -1,14 +1,12 @@
-from django.contrib.auth import get_user_model
-from django.db import connection, transaction
-from django_tenants.utils import schema_context
+from django.db import transaction
 from rest_framework import serializers
 
 from accesscontrol.models import PermissionModule
 from tenancy.models import Client, Domain, SubscriptionPlan
+from tenancy.services import create_tenant_admin_user
 from tenancy.utils import build_tenant_domain, normalize_domain, normalize_schema_name
 
 MIN_PASSWORD_LENGTH = 8
-UserModel = get_user_model()
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
@@ -213,21 +211,16 @@ class ClientSerializer(serializers.ModelSerializer):
         if not admin_data:
             return
 
-        current_schema = getattr(connection, "schema_name", "public")
-        with schema_context(client.schema_name):
-            if UserModel.objects.filter(username=admin_data["username"]).exists():
-                raise serializers.ValidationError(
-                    {"admin": {"username": "Username already exists in this tenant."}}
-                )
-            UserModel.objects.create_user(
-                username=admin_data["username"],
-                email=admin_data.get("email", ""),
-                password=admin_data["password"],
-                first_name=admin_data.get("first_name", ""),
-                last_name=admin_data.get("last_name", ""),
-                is_staff=True,
-            )
-        connection.set_schema(current_schema)
+        try:
+            create_tenant_admin_user(client, admin_data)
+        except ValueError as exc:
+            raise serializers.ValidationError(
+                {"admin": {"username": str(exc)}}
+            ) from exc
+        except RuntimeError as exc:
+            raise serializers.ValidationError(
+                {"admin": "Tenant admin user was not created in tenant schema."}
+            ) from exc
 
     @transaction.atomic
     def create(self, validated_data):

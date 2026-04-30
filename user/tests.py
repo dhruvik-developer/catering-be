@@ -1,7 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, override_settings
+from django.db import connection
 from rest_framework import status
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken
 
 from accesscontrol.models import (
     AccessPermission,
@@ -107,8 +110,13 @@ class UserCreationAccessTests(TestCase):
         self.assertEqual(response.data["message"], "User list fetched successfully.")
 
 
+@override_settings(
+    ALLOWED_HOSTS=["testserver", "localhost", ".localhost"],
+    SAAS_ROOT_DOMAIN="localhost",
+)
 class TenantSaaSTests(TestCase):
     def setUp(self):
+        connection.set_schema_to_public()
         self.client = APIClient()
         self.platform_admin = UserModel.objects.create_superuser(
             username="platform-admin",
@@ -133,6 +141,9 @@ class TenantSaaSTests(TestCase):
             code="categories.create",
             defaults={"action": "create", "name": "Create categories"},
         )
+
+    def tearDown(self):
+        connection.set_schema_to_public()
 
     def test_platform_admin_can_create_tenant_with_admin_user(self):
         self.client.force_authenticate(user=self.platform_admin)
@@ -159,9 +170,77 @@ class TenantSaaSTests(TestCase):
 
         tenant = Client.objects.get(schema_name="radha")
         self.assertEqual(tenant.get_primary_domain().domain, "radha.localhost")
+        self.assertFalse(UserModel.objects.filter(username="radha-admin").exists())
         with schema_context("radha"):
             tenant_admin = UserModel.objects.get(username="radha-admin")
             self.assertTrue(tenant_admin.is_staff)
+
+    def test_tenant_admin_can_login_with_schema_name_from_public_host(self):
+        tenant = Client.objects.create(
+            name="Radha",
+            schema_name="radha",
+            subscription_status=Client.STATUS_ACTIVE,
+        )
+        Domain.objects.create(
+            tenant=tenant,
+            domain=f"radha.{settings.SAAS_ROOT_DOMAIN}",
+            is_primary=True,
+        )
+
+        with schema_context("radha"):
+            UserModel.objects.create_user(
+                username="radha-admin",
+                password="admin1234",
+                is_staff=True,
+            )
+
+        response = self.client.post(
+            "/api/login/",
+            {
+                "username": "radha-admin",
+                "password": "admin1234",
+                "schema_name": "radha",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["status"])
+        self.assertEqual(response.data["data"]["tenant"]["schema_name"], "radha")
+        access_token = AccessToken(response.data["data"]["tokens"]["access"])
+        self.assertEqual(access_token["schema_name"], "radha")
+
+    def test_tenant_admin_can_login_from_public_host_when_credentials_are_unique(self):
+        tenant = Client.objects.create(
+            name="Radha",
+            schema_name="radha",
+            subscription_status=Client.STATUS_ACTIVE,
+        )
+        Domain.objects.create(
+            tenant=tenant,
+            domain=f"radha.{settings.SAAS_ROOT_DOMAIN}",
+            is_primary=True,
+        )
+
+        with schema_context("radha"):
+            UserModel.objects.create_user(
+                username="unique-radha-admin",
+                password="admin1234",
+                is_staff=True,
+            )
+
+        response = self.client.post(
+            "/api/login/",
+            {
+                "username": "unique-radha-admin",
+                "password": "admin1234",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["status"])
+        self.assertEqual(response.data["data"]["tenant"]["schema_name"], "radha")
 
     def test_tenant_admin_can_create_module_scoped_user(self):
         tenant = Client.objects.create(
@@ -169,7 +248,11 @@ class TenantSaaSTests(TestCase):
             schema_name="radha",
             subscription_status=Client.STATUS_ACTIVE,
         )
-        Domain.objects.create(tenant=tenant, domain="radha.localhost", is_primary=True)
+        Domain.objects.create(
+            tenant=tenant,
+            domain=f"radha.{settings.SAAS_ROOT_DOMAIN}",
+            is_primary=True,
+        )
         tenant.enabled_modules.set([self.category_module, self.users_module])
 
         with schema_context("radha"):
@@ -199,7 +282,7 @@ class TenantSaaSTests(TestCase):
                 "module_codes": ["categories"],
             },
             format="json",
-            HTTP_HOST="radha.localhost",
+            HTTP_HOST=f"radha.{settings.SAAS_ROOT_DOMAIN}",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
