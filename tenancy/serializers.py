@@ -3,8 +3,12 @@ from rest_framework import serializers
 
 from accesscontrol.models import PermissionModule
 from tenancy.models import Client, Domain, SubscriptionPlan
-from tenancy.services import create_tenant_admin_user
-from tenancy.utils import build_tenant_domain, normalize_domain, normalize_schema_name
+from tenancy.services import (
+    create_tenant_admin_user,
+    create_tenant_domains,
+    replace_tenant_domains,
+)
+from tenancy.utils import normalize_schema_name
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -38,6 +42,8 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 
 
 class DomainSerializer(serializers.ModelSerializer):
+    domain = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = Domain
         fields = ["id", "domain", "is_primary"]
@@ -99,7 +105,7 @@ class ClientSerializer(serializers.ModelSerializer):
     schema_name = serializers.CharField(required=False, allow_blank=True)
     domain = serializers.CharField(required=False, allow_blank=True, write_only=True)
     primary_domain = serializers.SerializerMethodField()
-    domains = DomainSerializer(many=True, read_only=True)
+    domains = DomainSerializer(many=True, required=False)
     subscription_plan = serializers.PrimaryKeyRelatedField(
         queryset=SubscriptionPlan.objects.filter(is_active=True),
         required=False,
@@ -151,7 +157,6 @@ class ClientSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "primary_domain",
-            "domains",
             "schema_status",
             "schema_error",
             "provisioned_at",
@@ -196,17 +201,6 @@ class ClientSerializer(serializers.ModelSerializer):
             )
         return schema_name
 
-    def validate_domain(self, value):
-        if not value:
-            return ""
-        domain = normalize_domain(value)
-        duplicate_query = Domain.objects.filter(domain=domain)
-        if self.instance:
-            duplicate_query = duplicate_query.exclude(tenant=self.instance)
-        if duplicate_query.exists():
-            raise serializers.ValidationError("Domain is already assigned.")
-        return domain
-
     def _create_tenant_admin(self, client, admin_data):
         if not admin_data:
             return
@@ -228,6 +222,7 @@ class ClientSerializer(serializers.ModelSerializer):
         enabled_modules = validated_data.pop("enabled_modules", [])
         admin_data = validated_data.pop("admin", None)
         domain = validated_data.pop("domain", "")
+        domains = validated_data.pop("domains", None)
 
         if not validated_data.get("schema_name"):
             validated_data["schema_name"] = self._get_unique_schema_name(
@@ -245,11 +240,10 @@ class ClientSerializer(serializers.ModelSerializer):
         if enabled_modules:
             client.enabled_modules.set(enabled_modules)
 
-        Domain.objects.create(
-            tenant=client,
-            domain=domain or build_tenant_domain(client.schema_name),
-            is_primary=True,
-        )
+        try:
+            create_tenant_domains(client, domain=domain, domains=domains)
+        except ValueError as exc:
+            raise serializers.ValidationError({"domains": str(exc)}) from exc
 
         self._create_tenant_admin(client, admin_data)
         return client
@@ -258,6 +252,7 @@ class ClientSerializer(serializers.ModelSerializer):
         enabled_modules = validated_data.pop("enabled_modules", None)
         validated_data.pop("admin", None)
         domain = validated_data.pop("domain", None)
+        domains = validated_data.pop("domains", None)
 
         for field, value in validated_data.items():
             setattr(instance, field, value)
@@ -266,11 +261,14 @@ class ClientSerializer(serializers.ModelSerializer):
         if enabled_modules is not None:
             instance.enabled_modules.set(enabled_modules)
 
-        if domain:
-            Domain.objects.update_or_create(
-                tenant=instance,
-                is_primary=True,
-                defaults={"domain": domain},
-            )
+        if domain is not None or domains is not None:
+            try:
+                replace_tenant_domains(
+                    instance,
+                    domain=domain or "",
+                    domains=domains,
+                )
+            except ValueError as exc:
+                raise serializers.ValidationError({"domains": str(exc)}) from exc
 
         return instance

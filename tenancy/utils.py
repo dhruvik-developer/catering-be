@@ -45,5 +45,14 @@ def build_tenant_domain(schema_name):
     return normalize_domain(f"{schema_name}.{root_domain}")
 
 
+def normalize_tenant_domain(value):
+    domain = normalize_domain(value)
+    if not domain:
+        return ""
+    if "." not in domain:
+        return build_tenant_domain(domain)
+    return domain
+
+
 def is_public_schema(schema_name):
     return (schema_name or PUBLIC_SCHEMA_NAME) == PUBLIC_SCHEMA_NAME

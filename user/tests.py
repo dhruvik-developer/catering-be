@@ -175,6 +175,38 @@ class TenantSaaSTests(TestCase):
             tenant_admin = UserModel.objects.get(username="radha-admin")
             self.assertTrue(tenant_admin.is_staff)
 
+    def test_platform_admin_can_create_tenant_with_explicit_domain(self):
+        self.client.force_authenticate(user=self.platform_admin)
+
+        response = self.client.post(
+            "/api/tenants/",
+            {
+                "name": "EV Catering",
+                "schema_name": "ev_catering",
+                "subscription_status": "active",
+                "domains": [
+                    {
+                        "domain": "evcatering",
+                        "is_primary": True,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["data"]["schema_name"], "ev_catering")
+        self.assertEqual(
+            response.data["data"]["primary_domain"],
+            "evcatering.localhost",
+        )
+
+        tenant = Client.objects.get(schema_name="ev_catering")
+        self.assertEqual(tenant.get_primary_domain().domain, "evcatering.localhost")
+        self.assertFalse(
+            Domain.objects.filter(domain="ev_catering.localhost").exists()
+        )
+
     def test_tenant_admin_can_login_with_schema_name_from_public_host(self):
         tenant = Client.objects.create(
             name="Radha",

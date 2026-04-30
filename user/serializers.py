@@ -6,11 +6,15 @@ from accesscontrol.models import (
     UserPermissionAssignment,
 )
 from radha.Utils.permissions import get_tenant_enabled_module_codes, get_user_active_tenant
-from tenancy.serializers import ClientSummarySerializer
-from tenancy.services import create_tenant_admin_user
+from tenancy.serializers import ClientSummarySerializer, DomainSerializer
+from tenancy.services import (
+    create_tenant_admin_user,
+    create_tenant_domains,
+    replace_tenant_domains,
+)
 from user.tenanting import normalize_schema_name, provision_tenant_schema
 
-from tenancy.models import Client, Domain, SubscriptionPlan
+from tenancy.models import Client, SubscriptionPlan
 from .models import BusinessProfile, Note, UserModel
 
 MIN_PASSWORD_LENGTH = 8
@@ -96,6 +100,9 @@ class TenantAdminCreateSerializer(serializers.Serializer):
 
 class TenantSerializer(serializers.ModelSerializer):
     schema_name = serializers.CharField(required=False, allow_blank=True)
+    domain = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    primary_domain = serializers.SerializerMethodField()
+    domains = DomainSerializer(many=True, required=False)
     subscription_plan = serializers.PrimaryKeyRelatedField(
         queryset=SubscriptionPlan.objects.filter(is_active=True),
         required=False,
@@ -121,6 +128,9 @@ class TenantSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "schema_name",
+            "domain",
+            "primary_domain",
+            "domains",
             "contact_name",
             "contact_email",
             "contact_phone",
@@ -141,6 +151,7 @@ class TenantSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "primary_domain",
             "schema_status",
             "schema_error",
             "provisioned_at",
@@ -152,6 +163,10 @@ class TenantSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "schema_name": {"required": False},
         }
+
+    def get_primary_domain(self, obj):
+        domain = obj.get_primary_domain()
+        return domain.domain if domain else None
 
     def _get_unique_schema_name(self, value):
         try:
@@ -192,6 +207,8 @@ class TenantSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         enabled_modules = validated_data.pop("enabled_modules", [])
         admin_data = validated_data.pop("admin", None)
+        domain = validated_data.pop("domain", "")
+        domains = validated_data.pop("domains", None)
 
         if not validated_data.get("schema_name"):
             validated_data["schema_name"] = self._get_unique_schema_name(
@@ -209,16 +226,10 @@ class TenantSerializer(serializers.ModelSerializer):
         if enabled_modules:
             tenant.enabled_modules.set(enabled_modules)
 
-        # Create the domain for routing
-        from django.conf import settings
-        root_domain = getattr(settings, "SAAS_ROOT_DOMAIN", "localhost")
-        domain_url = f"{tenant.schema_name}.{root_domain}"
-        
-        Domain.objects.create(
-            domain=domain_url,
-            tenant=tenant,
-            is_primary=True
-        )
+        try:
+            create_tenant_domains(tenant, domain=domain, domains=domains)
+        except ValueError as exc:
+            raise serializers.ValidationError({"domains": str(exc)}) from exc
 
         provision_tenant_schema(tenant)
 
@@ -239,6 +250,8 @@ class TenantSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         enabled_modules = validated_data.pop("enabled_modules", None)
         validated_data.pop("admin", None)
+        domain = validated_data.pop("domain", None)
+        domains = validated_data.pop("domains", None)
 
         for field, value in validated_data.items():
             setattr(instance, field, value)
@@ -246,6 +259,16 @@ class TenantSerializer(serializers.ModelSerializer):
 
         if enabled_modules is not None:
             instance.enabled_modules.set(enabled_modules)
+
+        if domain is not None or domains is not None:
+            try:
+                replace_tenant_domains(
+                    instance,
+                    domain=domain or "",
+                    domains=domains,
+                )
+            except ValueError as exc:
+                raise serializers.ValidationError({"domains": str(exc)}) from exc
 
         return instance
 
