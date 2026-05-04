@@ -54,7 +54,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-change-me")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", False)
 
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.localhost")
 
 # Allow specific origins
 CORS_ALLOWED_ORIGINS = env_list(
@@ -138,8 +138,8 @@ SAAS_ROOT_DOMAIN = get_env("SAAS_ROOT_DOMAIN", "localhost")
 
 
 MIDDLEWARE = [
-    "django_tenants.middleware.main.TenantMainMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "django_tenants.middleware.main.TenantMainMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -271,12 +271,16 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Media files (for handling file uploads)
+MEDIA_URL = get_env("MEDIA_URL") or "/media/"
+if not MEDIA_URL.endswith("/"):
+    MEDIA_URL = f"{MEDIA_URL}/"
+
 if get_env("SERVER", "LOCAL") == "PROD":
-    MEDIA_ROOT = "/var/www/radha/media"
-    MEDIA_URL = "/media/"
+    default_media_root = "/var/www/radha/media"
 else:
-    MEDIA_URL = "/media/"
-    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+    default_media_root = os.path.join(BASE_DIR, "media")
+
+MEDIA_ROOT = get_env("MEDIA_ROOT") or default_media_root
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

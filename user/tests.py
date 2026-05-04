@@ -242,6 +242,25 @@ class TenantSaaSTests(TestCase):
         access_token = AccessToken(response.data["data"]["tokens"]["access"])
         self.assertEqual(access_token["schema_name"], "radha")
 
+    @override_settings(
+        CORS_ALLOW_ALL_ORIGINS=False,
+        CORS_ALLOWED_ORIGINS=[],
+        CORS_ALLOWED_ORIGIN_REGEXES=[r"^http://.*\.localhost:5173$"],
+    )
+    def test_local_admin_subdomain_cors_preflight_does_not_require_tenant(self):
+        response = self.client.options(
+            "/api/login/",
+            HTTP_HOST="admin.localhost",
+            HTTP_ORIGIN="http://admin.localhost:5173",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response["access-control-allow-origin"],
+            "http://admin.localhost:5173",
+        )
+
     def test_tenant_admin_can_login_from_public_host_when_credentials_are_unique(self):
         tenant = Client.objects.create(
             name="Radha",
