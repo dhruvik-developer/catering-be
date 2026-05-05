@@ -107,6 +107,7 @@ SHARED_APPS = (
     "rest_framework",
     "corsheaders",
     "rest_framework.authtoken",
+    "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "accesscontrol",
     "user",
@@ -122,6 +123,7 @@ TENANT_APPS = (
     "rest_framework",
     "corsheaders",
     "rest_framework.authtoken",
+    "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "accesscontrol",
     "user",
@@ -224,11 +226,13 @@ SAAS_SHARED_APPS = (
     "contenttypes",
     "sessions",
     "authtoken",
+    "token_blacklist",
     "accesscontrol",
     "user",
 )
 
 SAAS_TENANT_APPS = (
+    "token_blacklist",
     "category",
     "ListOfIngridients",
     "item",
@@ -306,7 +310,6 @@ BUSINESS_PROFILE_LOGO_MAX_BYTES = env_int(
 BUSINESS_PROFILE_LOGO_ALLOWED_TYPES = tuple(
     env_list("BUSINESS_PROFILE_LOGO_ALLOWED_TYPES", "image/jpeg,image/png,image/webp")
 )
-PUBLIC_BUSINESS_PROFILE_READ = env_bool("PUBLIC_BUSINESS_PROFILE_READ", False)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

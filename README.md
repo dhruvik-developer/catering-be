@@ -347,7 +347,7 @@ These routes exist in `branchmanagement/urls.py` but are currently commented out
 
 1. Activate venv (if present)
 2. Install/update the subscription status cron job
-3. Run migrations
+3. Run shared and tenant schema migrations
 4. Start Gunicorn with `radha.wsgi:application`
 
 Default bind: `127.0.0.1:8009`

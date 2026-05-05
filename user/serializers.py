@@ -1,3 +1,5 @@
+from django.contrib.auth.password_validation import validate_password as django_validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection
 from django.conf import settings
 from django_tenants.utils import tenant_context
@@ -45,6 +47,24 @@ def seed_tenant_business_profile(tenant):
         )
 
 MIN_PASSWORD_LENGTH = 8
+
+
+def run_password_validators(value, user_instance=None):
+    """Run AUTH_PASSWORD_VALIDATORS + the project's MIN_PASSWORD_LENGTH check.
+
+    All three places we set passwords go through this so a weak password is
+    blocked consistently — common-list check, numeric-only check, and the
+    UserAttributeSimilarity check from settings all fire here.
+    """
+    if not value or len(value) < MIN_PASSWORD_LENGTH:
+        raise serializers.ValidationError(
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
+        )
+    try:
+        django_validate_password(value, user=user_instance)
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError(list(exc.messages)) from exc
+    return value
 
 
 class LoginSerializer(serializers.Serializer):
@@ -118,11 +138,7 @@ class TenantAdminCreateSerializer(serializers.Serializer):
     last_name = serializers.CharField(required=False, allow_blank=True)
 
     def validate_password(self, value):
-        if len(value) < MIN_PASSWORD_LENGTH:
-            raise serializers.ValidationError(
-                f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
-            )
-        return value
+        return run_password_validators(value)
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -526,22 +542,22 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return ClientSummarySerializer(tenant).data
 
     def validate_password(self, value):
-        if len(value) < MIN_PASSWORD_LENGTH:
-            raise serializers.ValidationError(
-                f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
-            )
-        return value
+        attrs = self.initial_data or {}
+        ghost = UserModel(
+            username=attrs.get("username", ""),
+            email=attrs.get("email", ""),
+            first_name=attrs.get("first_name", ""),
+            last_name=attrs.get("last_name", ""),
+        )
+        return run_password_validators(value, user_instance=ghost)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True, required=True)
 
     def validate_new_password(self, value):
-        if len(value) < MIN_PASSWORD_LENGTH:
-            raise serializers.ValidationError(
-                f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
-            )
-        return value
+
+        return run_password_validators(value, user_instance=self.context.get("target_user"))
 
 
 class BusinessProfileSerializer(serializers.ModelSerializer):

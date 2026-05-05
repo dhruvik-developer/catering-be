@@ -6,7 +6,6 @@ from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.auth import authenticate
-from django.conf import settings
 from django.db import connection
 from django.http import JsonResponse
 from .models import UserModel, Note, BusinessProfile, SubscriptionPlan
@@ -671,52 +670,70 @@ class ChangePasswordAPIView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, id):
+        # 1. Resolve target first so authorization decisions know who we're acting on.
+        try:
+            target_user = UserModel.objects.get(id=id)
+        except UserModel.DoesNotExist:
+            return Response(
+                {"status": False, "message": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        is_self = str(request.user.id) == str(target_user.id)
+        is_superuser = bool(request.user.is_superuser)
         has_manage_password_permission = user_has_permission(
             request.user, "users.change_password"
         )
-        if (
-            not request.user.is_staff
-            and not has_manage_password_permission
-            and str(request.user.id) != str(id)
-        ):
+
+        request_tenant = getattr(request, "tenant", None)
+        on_tenant_schema = (
+            request_tenant is not None
+            and getattr(request_tenant, "schema_name", "public") != "public"
+        )
+        if on_tenant_schema:
+            same_tenant = True
+        else:
+            actor_tenant_id = getattr(request.user, "tenant_id", None)
+            target_tenant_id = getattr(target_user, "tenant_id", None)
+            same_tenant = (
+                actor_tenant_id == target_tenant_id
+                if actor_tenant_id or target_tenant_id
+                else True
+            )
+
+        allowed = (
+            is_self
+            or is_superuser
+            or (has_manage_password_permission and same_tenant)
+            or (request.user.is_staff and same_tenant)
+        )
+        if not allowed:
             return Response(
                 {"status": False, "message": "You do not have permission to change this password."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                user = UserModel.objects.get(id=id)
-            except UserModel.DoesNotExist:
-                return Response(
-                    {"status": False, "message": "User not found."},
-                    status=status.HTTP_200_OK,
-                )
-
-            request_tenant = getattr(request, "tenant", None)
-            if (
-                request_tenant is not None
-                and getattr(request_tenant, "schema_name", "public") != "public"
-            ):
-                pass
-            elif request.user.tenant_id and user.tenant_id != request.user.tenant_id:
-                return Response(
-                    {
-                        "status": False,
-                        "message": "You cannot change password for another tenant.",
-                    },
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            new_password = serializer.validated_data["new_password"]
-            user.set_password(new_password)
-            user.save()
-
+        serializer = self.get_serializer(
+            data=request.data,
+            context={**self.get_serializer_context(), "target_user": target_user},
+        )
+        if not serializer.is_valid():
+            error_messages = []
+            for field, errors in serializer.errors.items():
+                error_messages.extend(errors)
             return Response(
-                {"status": True, "message": "Password changed successfully."},
-                status=status.HTTP_200_OK,
+                {
+                    "status": False,
+                    "message": error_messages[0] if error_messages else "Invalid password.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        target_user.set_password(serializer.validated_data["new_password"])
+        target_user.save()
+
+        return Response(
+            {"status": True, "message": "Password changed successfully."},
+            status=status.HTTP_200_OK,
+        )
 
         error_messages = []
         for field, errors in serializer.errors.items():
@@ -754,10 +771,7 @@ class BusinessProfileAPIView(generics.GenericAPIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
-        if (
-            settings.PUBLIC_BUSINESS_PROFILE_READ
-            and self.request.method in ("GET", "HEAD", "OPTIONS")
-        ):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
             return [AllowAny()]
         return [permission() for permission in self.permission_classes]
 
@@ -812,10 +826,7 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
-        if (
-            settings.PUBLIC_BUSINESS_PROFILE_READ
-            and self.request.method in ("GET", "HEAD", "OPTIONS")
-        ):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
             return [AllowAny()]
         return [permission() for permission in self.permission_classes]
 

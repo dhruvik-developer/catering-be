@@ -1,3 +1,6 @@
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password as django_validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
 
@@ -11,6 +14,24 @@ from tenancy.services import (
 from tenancy.utils import normalize_schema_name
 
 MIN_PASSWORD_LENGTH = 8
+
+
+def run_password_validators(value, user_instance=None):
+    """Length check + Django's full AUTH_PASSWORD_VALIDATORS pipeline.
+
+    Mirrors user.serializers.run_password_validators so both ways of provisioning
+    a tenant admin (via user.serializers and via tenancy.serializers) reject
+    weak passwords identically.
+    """
+    if not value or len(value) < MIN_PASSWORD_LENGTH:
+        raise serializers.ValidationError(
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
+        )
+    try:
+        django_validate_password(value, user=user_instance)
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError(list(exc.messages)) from exc
+    return value
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
@@ -103,11 +124,15 @@ class TenantAdminCreateSerializer(serializers.Serializer):
     last_name = serializers.CharField(required=False, allow_blank=True)
 
     def validate_password(self, value):
-        if len(value) < MIN_PASSWORD_LENGTH:
-            raise serializers.ValidationError(
-                f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
-            )
-        return value
+        attrs = self.initial_data or {}
+        UserModel = get_user_model()
+        ghost = UserModel(
+            username=attrs.get("username", ""),
+            email=attrs.get("email", ""),
+            first_name=attrs.get("first_name", ""),
+            last_name=attrs.get("last_name", ""),
+        )
+        return run_password_validators(value, user_instance=ghost)
 
 
 class ClientSerializer(serializers.ModelSerializer):

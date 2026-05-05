@@ -26,9 +26,16 @@ if [ "$AUTO_INSTALL_SUBSCRIPTION_CRON" = "true" ]; then
   fi
 fi
 
-# Run Django migrations
-echo "Running migrations..."
-python manage.py migrate --noinput
+# Run Django tenant-aware migrations. This keeps shared/public tables and all
+# tenant schemas in sync when PM2 restarts after a deploy.
+echo "Running shared schema migrations..."
+python manage.py migrate_schemas --shared --noinput
+
+echo "Running tenant schema migrations..."
+python manage.py migrate_schemas --tenant --noinput
+
+echo "Repairing tenant JWT blacklist tables..."
+python manage.py repair_token_blacklist_tables
 
 # Optional (recommended): collect static
 # echo "Collecting static files..."
