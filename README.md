@@ -343,17 +343,19 @@ These routes exist in `branchmanagement/urls.py` but are currently commented out
 
 ## Deployment Script
 
-`radha-beckend.sh` does:
+`catering-be.sh` does:
 
 1. Activate venv (if present)
-2. Run migrations
-3. Start Gunicorn with `radha.wsgi:application`
+2. Install/update the subscription status cron job
+3. Run migrations
+4. Start Gunicorn with `radha.wsgi:application`
 
-Default bind: `127.0.0.1:8006`
+Default bind: `127.0.0.1:8009`
 
 ## Scheduled Subscription Status Updates
 
-Run this once on the production server to install the daily 1:00 AM job:
+`catering-be.sh` installs/updates the daily 1:00 AM cron job automatically
+whenever PM2 starts or restarts the backend. You can also install it manually:
 
 ```bash
 cd /root/catering-be
@@ -385,6 +387,12 @@ If the project is deployed somewhere else, pass `APP_DIR`:
 
 ```bash
 APP_DIR=/path/to/radha-be ./scripts/install_subscription_status_cron.sh
+```
+
+To disable automatic cron installation during app startup:
+
+```bash
+AUTO_INSTALL_SUBSCRIPTION_CRON=false ./catering-be.sh
 ```
 
 To test the runner without saving subscription changes:
