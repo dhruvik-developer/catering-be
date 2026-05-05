@@ -5,6 +5,7 @@ from .models import Vendor, VendorCategory
 from ListOfIngridients.models import IngridientsCategory
 
 UserModel = get_user_model()
+MIN_LOGIN_PASSWORD_LENGTH = 8
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -94,9 +95,14 @@ class VendorSerializer(serializers.ModelSerializer):
                 {"login_password": "Password is required when creating a vendor login."}
             )
 
-        if password and len(password) < 4:
+        if password and len(password) < MIN_LOGIN_PASSWORD_LENGTH:
             raise serializers.ValidationError(
-                {"login_password": "Password must be at least 4 characters long."}
+                {
+                    "login_password": (
+                        f"Password must be at least {MIN_LOGIN_PASSWORD_LENGTH} "
+                        "characters long."
+                    )
+                }
             )
 
         if username:

@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from datetime import timedelta
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -48,11 +49,17 @@ def get_env(name, default=None):
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-change-me")
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", False)
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = get_env("DJANGO_SECRET_KEY") or (
+    "django-insecure-change-me" if DEBUG else ""
+)
+if not SECRET_KEY:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG=False.")
+if not DEBUG and SECRET_KEY == "django-insecure-change-me":
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be changed in production.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.localhost")
 
@@ -67,16 +74,24 @@ CORS_ALLOWED_ORIGIN_REGEXES = env_list(
 )
 CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", False)
 
-# Allow specific HTTP methods
+# Allow only the methods used by the API.
 CORS_ALLOW_METHODS = [
-    "*",
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 
 # Allow specific headers
 CORS_ALLOW_HEADERS = [
+    "accept",
     "content-type",
     "authorization",
+    "x-csrftoken",
 ]
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 
 # Application definition
 
@@ -282,6 +297,17 @@ else:
 
 MEDIA_ROOT = get_env("MEDIA_ROOT") or default_media_root
 
+DATA_UPLOAD_MAX_MEMORY_SIZE = env_int("DATA_UPLOAD_MAX_MEMORY_SIZE", 10 * 1024 * 1024)
+FILE_UPLOAD_MAX_MEMORY_SIZE = env_int("FILE_UPLOAD_MAX_MEMORY_SIZE", 5 * 1024 * 1024)
+BUSINESS_PROFILE_LOGO_MAX_BYTES = env_int(
+    "BUSINESS_PROFILE_LOGO_MAX_BYTES",
+    2 * 1024 * 1024,
+)
+BUSINESS_PROFILE_LOGO_ALLOWED_TYPES = tuple(
+    env_list("BUSINESS_PROFILE_LOGO_ALLOWED_TYPES", "image/jpeg,image/png,image/webp")
+)
+PUBLIC_BUSINESS_PROFILE_READ = env_bool("PUBLIC_BUSINESS_PROFILE_READ", False)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
@@ -294,8 +320,21 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "login": get_env("LOGIN_THROTTLE_RATE", "10/minute"),
+        "token_refresh": get_env("TOKEN_REFRESH_THROTTLE_RATE", "30/minute"),
+    },
     "EXCEPTION_HANDLER": "radha.Utils.custom_exception.custom_exception_handler",
 }
+
+JWT_SIGNING_KEY = get_env("JWT_SIGNING_KEY") or SECRET_KEY
+if not DEBUG and len(JWT_SIGNING_KEY) < 32:
+    raise ImproperlyConfigured(
+        "JWT_SIGNING_KEY must be at least 32 characters when DJANGO_DEBUG=False."
+    )
 
 # Lifetimes are env-tunable. Defaults keep the access token short and the
 # refresh token measured in days so a leaked token has a small blast radius.
@@ -313,8 +352,15 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
     "SLIDING_TOKEN_LIFETIME": timedelta(minutes=env_int("JWT_ACCESS_MINUTES", 30)),
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=env_int("JWT_REFRESH_DAYS", 14)),
-    "SIGNING_KEY": os.getenv("JWT_SIGNING_KEY", SECRET_KEY),
+    "SIGNING_KEY": JWT_SIGNING_KEY,
 }
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
 
 # Production-only hardening. In DEBUG these are all no-ops so local dev
 # over plain HTTP keeps working.
@@ -325,10 +371,7 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = env_int("SECURE_HSTS_SECONDS", 31536000)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_REFERRER_POLICY = "same-origin"
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    X_FRAME_OPTIONS = "DENY"
 
 LOGGING = {
     "version": 1,

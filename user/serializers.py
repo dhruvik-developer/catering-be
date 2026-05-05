@@ -1,4 +1,5 @@
 from django.db import connection
+from django.conf import settings
 from django_tenants.utils import tenant_context
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -559,3 +560,27 @@ class BusinessProfileSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_logo(self, value):
+        if value is None:
+            return value
+
+        max_bytes = getattr(settings, "BUSINESS_PROFILE_LOGO_MAX_BYTES", 2 * 1024 * 1024)
+        if value.size > max_bytes:
+            max_mb = max_bytes / (1024 * 1024)
+            raise serializers.ValidationError(
+                f"Logo file size must be {max_mb:.1f} MB or smaller."
+            )
+
+        allowed_types = getattr(
+            settings,
+            "BUSINESS_PROFILE_LOGO_ALLOWED_TYPES",
+            ("image/jpeg", "image/png", "image/webp"),
+        )
+        content_type = getattr(value, "content_type", "")
+        if content_type and content_type not in allowed_types:
+            raise serializers.ValidationError(
+                "Logo must be a JPEG, PNG, or WebP image."
+            )
+
+        return value

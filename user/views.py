@@ -4,7 +4,9 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
+from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.auth import authenticate
+from django.conf import settings
 from django.db import connection
 from django.http import JsonResponse
 from .models import UserModel, Note, BusinessProfile, SubscriptionPlan
@@ -52,6 +54,7 @@ class LoginViewSet(generics.GenericAPIView):
 
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
+    throttle_scope = "login"
 
     def _get_request_tenant(self, request):
         tenant = getattr(request, "tenant", None)
@@ -277,6 +280,11 @@ class LoginViewSet(generics.GenericAPIView):
                 )
 
         return self._invalid_login_response()
+
+
+class TenantTokenRefreshView(TokenRefreshView):
+    permission_classes = [AllowAny]
+    throttle_scope = "token_refresh"
 
 
 class NoteViewSet(generics.GenericAPIView):
@@ -746,7 +754,10 @@ class BusinessProfileAPIView(generics.GenericAPIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
-        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+        if (
+            settings.PUBLIC_BUSINESS_PROFILE_READ
+            and self.request.method in ("GET", "HEAD", "OPTIONS")
+        ):
             return [AllowAny()]
         return [permission() for permission in self.permission_classes]
 
@@ -801,7 +812,10 @@ class BusinessProfileDetailAPIView(generics.GenericAPIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
-        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+        if (
+            settings.PUBLIC_BUSINESS_PROFILE_READ
+            and self.request.method in ("GET", "HEAD", "OPTIONS")
+        ):
             return [AllowAny()]
         return [permission() for permission in self.permission_classes]
 
