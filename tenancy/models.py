@@ -8,11 +8,13 @@ from django_tenants.models import DomainMixin, TenantMixin
 
 class SubscriptionPlan(models.Model):
     BILLING_CYCLE_MONTHLY = "monthly"
+    BILLING_CYCLE_QUARTERLY = "quarterly"
     BILLING_CYCLE_YEARLY = "yearly"
     BILLING_CYCLE_LIFETIME = "lifetime"
 
     BILLING_CYCLE_CHOICES = (
         (BILLING_CYCLE_MONTHLY, "Monthly"),
+        (BILLING_CYCLE_QUARTERLY, "Quarterly"),
         (BILLING_CYCLE_YEARLY, "Yearly"),
         (BILLING_CYCLE_LIFETIME, "Lifetime"),
     )

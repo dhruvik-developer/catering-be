@@ -21,6 +21,11 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
         source="included_modules",
         required=False,
     )
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = SubscriptionPlan
@@ -39,6 +44,10 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_description(self, value):
+        # The model column is non-nullable TextField; normalise null -> "".
+        return value or ""
 
 
 class DomainSerializer(serializers.ModelSerializer):
