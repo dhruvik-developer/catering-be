@@ -148,7 +148,9 @@ class VendorSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context.get("request")
-        if request is None or not request.user.is_superuser:
+        if request is None or not (
+            request.user.is_superuser or request.user.is_staff
+        ):
             raise PermissionDenied("Only admin allowed.")
 
         categories_data = validated_data.pop("vendor_categories", [])

@@ -1,3 +1,5 @@
+from django.db import connection
+from django_tenants.utils import tenant_context
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from accesscontrol.models import (
@@ -16,6 +18,30 @@ from user.tenanting import normalize_schema_name, provision_tenant_schema
 
 from tenancy.models import Client, SubscriptionPlan
 from .models import BusinessProfile, Note, UserModel
+
+
+def seed_tenant_business_profile(tenant):
+    """Create the initial BusinessProfile inside the tenant schema.
+
+    Called once during tenant provisioning so the tenant lands with a profile
+    pre-populated from their tenant record (caters_name <- tenant.name,
+    phone_number <- tenant.contact_phone). The tenant admin can edit it later
+    from Settings.
+    """
+    caters_name = (tenant.name or "").strip()
+    phone_number = (tenant.contact_phone or "").strip()
+    if not caters_name:
+        return None
+
+    with tenant_context(tenant):
+        if getattr(connection, "schema_name", "public") != tenant.schema_name:
+            return None
+        if BusinessProfile.objects.exists():
+            return None
+        return BusinessProfile.objects.create(
+            caters_name=caters_name[:255],
+            phone_number=phone_number[:20],
+        )
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -232,6 +258,15 @@ class TenantSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"domains": str(exc)}) from exc
 
         provision_tenant_schema(tenant)
+
+        # Seed the tenant's BusinessProfile from their contact info so they
+        # don't have to re-type it on first login.
+        try:
+            seed_tenant_business_profile(tenant)
+        except Exception:
+            # Don't fail tenant creation if seeding the profile fails — the
+            # admin can create it manually from Settings.
+            pass
 
         if admin_data:
             try:

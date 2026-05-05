@@ -125,6 +125,7 @@ class ClientAdmin(admin.ModelAdmin):
                     username=username,
                     email=email,
                     password=password,
+                    is_active=True,
                     is_staff=True,
                 )
                 self.message_user(

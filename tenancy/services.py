@@ -117,6 +117,7 @@ def create_tenant_admin_user(tenant, admin_data):
             password=admin_data["password"],
             first_name=admin_data.get("first_name", ""),
             last_name=admin_data.get("last_name", ""),
+            is_active=True,
             is_staff=True,
             is_superuser=admin_data.get("is_superuser", False),
         )

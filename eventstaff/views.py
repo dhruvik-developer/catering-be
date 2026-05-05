@@ -82,7 +82,7 @@ class StaffViewSet(viewsets.ModelViewSet):
     ordering_fields = ["name", "created_at", "per_person_rate"]
 
     def create(self, request, *args, **kwargs):
-        if not request.user.is_superuser:
+        if not (request.user.is_superuser or request.user.is_staff):
             raise PermissionDenied("Only admin can create this resource.")
         return super().create(request, *args, **kwargs)
 

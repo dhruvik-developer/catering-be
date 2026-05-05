@@ -32,7 +32,7 @@ class VendorListCreateAPIView(generics.GenericAPIView):
 
     @transaction.atomic
     def post(self, request):
-        if not request.user.is_superuser:
+        if not (request.user.is_superuser or request.user.is_staff):
             raise PermissionDenied("Only admin can create this resource.")
 
         serializer = self.get_serializer(data=request.data)
