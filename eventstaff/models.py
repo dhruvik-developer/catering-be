@@ -294,14 +294,17 @@ class EventStaffAssignment(models.Model):
                 if self.per_person_rate is not None
                 else self.staff.per_person_rate
             )
+            effective_rate = Decimal(str(effective_rate or 0))
             self.total_amount = (
                 Decimal(str(self.total_days))
-                * Decimal(str(effective_rate))
+                * effective_rate
                 * Decimal(str(self.number_of_persons))
             )
 
         if self.paid_amount is None:
             self.paid_amount = Decimal("0.00")
+        else:
+            self.paid_amount = Decimal(str(self.paid_amount))
 
         self.remaining_amount = self.total_amount - self.paid_amount
 
@@ -425,9 +428,13 @@ class FixedStaffSalaryPayment(models.Model):
 
         if self.paid_amount is None:
             self.paid_amount = Decimal("0.00")
+        else:
+            self.paid_amount = Decimal(str(self.paid_amount))
 
         if self.withdrawal_deduction is None:
             self.withdrawal_deduction = Decimal("0.00")
+        else:
+            self.withdrawal_deduction = Decimal(str(self.withdrawal_deduction))
 
         self.total_amount = self.monthly_salary * Decimal(str(self.months_count or 0))
         self.remaining_amount = (
