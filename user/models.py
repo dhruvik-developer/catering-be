@@ -75,10 +75,25 @@ class Note(models.Model):
 
 
 class BusinessProfile(models.Model):
+    LANGUAGE_ENGLISH = "en"
+    LANGUAGE_GUJARATI = "gu"
+    LANGUAGE_HINDI = "hi"
+    LANGUAGE_CHOICES = (
+        (LANGUAGE_ENGLISH, "English"),
+        (LANGUAGE_GUJARATI, "Gujarati"),
+        (LANGUAGE_HINDI, "Hindi"),
+    )
+
     caters_name = models.CharField("Caters Name", max_length=255)
     phone_number = models.CharField("Phone Number", max_length=20)
     logo = models.ImageField("Logo", upload_to="business_profile/logos/", blank=True, null=True)
     color_code = models.CharField("Color Code", max_length=20, blank=True, null=True)
+    selected_language = models.CharField(
+        "Selected Language",
+        max_length=10,
+        choices=LANGUAGE_CHOICES,
+        default=LANGUAGE_ENGLISH,
+    )
     whatsapp_number = models.CharField(
         "WhatsApp Number", max_length=20, blank=True, null=True
     )

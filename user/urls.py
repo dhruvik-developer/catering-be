@@ -21,6 +21,11 @@ urlpatterns = [
         name="business-profile-list",
     ),
     path(
+        "business-profiles/language/",
+        BusinessProfileLanguageAPIView.as_view(),
+        name="business-profile-language",
+    ),
+    path(
         "business-profiles/<int:id>/",
         BusinessProfileDetailAPIView.as_view(),
         name="business-profile-detail",

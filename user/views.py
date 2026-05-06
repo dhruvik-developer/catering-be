@@ -22,6 +22,7 @@ from .serializers import (
     UserCreateSerializer,
     ChangePasswordSerializer,
     BusinessProfileSerializer,
+    BusinessProfileLanguageSerializer,
 )
 from django.shortcuts import get_object_or_404
 from radha.Utils.permissions import (
@@ -755,6 +756,78 @@ def _tenant_only_guard():
             status=status.HTTP_404_NOT_FOUND,
         )
     return None
+
+
+class BusinessProfileLanguageAPIView(generics.GenericAPIView):
+    serializer_class = BusinessProfileLanguageSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+
+    def dispatch(self, request, *args, **kwargs):
+        guard = _tenant_only_guard()
+        if guard is not None:
+            return guard
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [AllowAny()]
+        return [permission() for permission in self.permission_classes]
+
+    def get_profile(self):
+        return BusinessProfile.objects.order_by("id").first()
+
+    def get(self, request):
+        profile = self.get_profile()
+        selected_language = (
+            profile.selected_language
+            if profile
+            else BusinessProfile.LANGUAGE_ENGLISH
+        )
+        return Response(
+            {
+                "status": True,
+                "message": "Business language fetched successfully.",
+                "data": {"selected_language": selected_language},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            error_messages = []
+            for field, errors in serializer.errors.items():
+                error_messages.extend(errors)
+            return Response(
+                {"status": False, "message": error_messages[0], "data": {}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        profile = self.get_profile()
+        if not profile:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Business profile not found.",
+                    "data": {},
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        profile.selected_language = serializer.validated_data["selected_language"]
+        profile.save(update_fields=["selected_language", "updated_at"])
+        return Response(
+            {
+                "status": True,
+                "message": "Business language updated successfully.",
+                "data": {"selected_language": profile.selected_language},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request):
+        return self.put(request)
 
 
 class BusinessProfileAPIView(generics.GenericAPIView):

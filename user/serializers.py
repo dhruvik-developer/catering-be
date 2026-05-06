@@ -569,6 +569,7 @@ class BusinessProfileSerializer(serializers.ModelSerializer):
             "phone_number",
             "logo",
             "color_code",
+            "selected_language",
             "whatsapp_number",
             "fssai_number",
             "godown_address",
@@ -600,3 +601,9 @@ class BusinessProfileSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+
+class BusinessProfileLanguageSerializer(serializers.Serializer):
+    selected_language = serializers.ChoiceField(
+        choices=BusinessProfile.LANGUAGE_CHOICES
+    )
