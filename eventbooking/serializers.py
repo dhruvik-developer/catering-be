@@ -2,7 +2,8 @@ from rest_framework import serializers
 from .models import *
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
-from decimal import Decimal, InvalidOperation
+
+from decimal import Decimal, InvalidOperation
 
 
 class EventItemConfigSerializer(serializers.ModelSerializer):

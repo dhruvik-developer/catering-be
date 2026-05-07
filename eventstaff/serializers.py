@@ -103,6 +103,7 @@ class StaffSerializer(serializers.ModelSerializer):
             "waiter_type",
             "waiter_type_name",
             "per_person_rate",
+            "agency_services",
             "is_active",
             "joining_date",
             "created_by",

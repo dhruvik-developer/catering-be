@@ -125,6 +125,16 @@ class Staff(models.Model):
     per_person_rate = models.DecimalField(
         "Paid Per Person (Rate)", max_digits=10, decimal_places=2, default=0.00
     )
+    # For Agency-type staff: a list of services this agency provides with
+    # their per-person rates, e.g. [{"service_name": "Waiter", "rate": "500"},
+    # {"service_name": "Chef", "rate": "1200"}]. Stored as JSON so we don't
+    # need a join table for what is essentially a small bag of pairs.
+    agency_services = models.JSONField(
+        "Agency Services",
+        default=list,
+        blank=True,
+        help_text="List of {service_name, rate} entries. Used when staff_type=Agency.",
+    )
     is_active = models.BooleanField("Is Active", default=True)
     joining_date = models.DateField(
         "Joining Date",
