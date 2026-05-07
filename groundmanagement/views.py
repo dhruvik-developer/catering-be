@@ -3,6 +3,11 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 
 from radha.Utils.permissions import IsAdminUserOrReadOnly
+from user.branching import (
+    ensure_object_in_user_branch,
+    filter_branch_queryset,
+    get_branch_save_kwargs,
+)
 
 from .models import GroundCategory, GroundItem
 from .serializers import (
@@ -18,7 +23,10 @@ class GroundCategoryViewSet(generics.GenericAPIView):
 
     def get(self, request):
         queryset = (
-            GroundCategory.objects.prefetch_related("ground_items")
+            filter_branch_queryset(
+                GroundCategory.objects.prefetch_related("ground_items"),
+                request,
+            )
             .all()
             .order_by("name")
         )
@@ -35,7 +43,7 @@ class GroundCategoryViewSet(generics.GenericAPIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            serializer.save(**get_branch_save_kwargs(request))
             return Response(
                 {
                     "status": True,
@@ -53,7 +61,7 @@ class GroundCategoryDetailViewSet(generics.GenericAPIView):
     permission_resource = "ground_categories"
 
     def get_object(self, pk):
-        return self.get_queryset().filter(pk=pk).first()
+        return filter_branch_queryset(self.get_queryset(), self.request).filter(pk=pk).first()
 
     def get(self, request, pk):
         category = self.get_object(pk)
@@ -144,7 +152,10 @@ class GroundItemViewSet(generics.GenericAPIView):
     permission_resource = "ground_items"
 
     def get(self, request):
-        queryset = GroundItem.objects.select_related("category").all().order_by("name")
+        queryset = filter_branch_queryset(
+            GroundItem.objects.select_related("category").all().order_by("name"),
+            request,
+        )
         category_id = request.query_params.get("category_id")
         is_active = request.query_params.get("is_active")
 
@@ -162,7 +173,9 @@ class GroundItemViewSet(generics.GenericAPIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            category = serializer.validated_data.get("category")
+            ensure_object_in_user_branch(category, request)
+            serializer.save(branch_profile=category.branch_profile)
             return Response(
                 {
                     "status": True,
@@ -180,7 +193,7 @@ class GroundItemDetailViewSet(generics.GenericAPIView):
     permission_resource = "ground_items"
 
     def get_object(self, pk):
-        return self.get_queryset().filter(pk=pk).first()
+        return filter_branch_queryset(self.get_queryset(), self.request).filter(pk=pk).first()
 
     def get(self, request, pk):
         item = self.get_object(pk)

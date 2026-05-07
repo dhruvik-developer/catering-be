@@ -36,6 +36,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = [
             "bill_no",
+            "branch_profile",
             "total_amount",
             "advance_amount",
             "total_extra_amount",
@@ -50,7 +51,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "booking",
             "transactions",
         ]
-        read_only_fields = ["bill_no", "created_at", "updated_at"]
+        read_only_fields = ["bill_no", "branch_profile", "created_at", "updated_at"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

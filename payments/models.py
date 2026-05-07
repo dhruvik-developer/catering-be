@@ -17,6 +17,13 @@ class Payment(models.Model):
     ]
 
     bill_no = models.AutoField(primary_key=True)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="payments",
+    )
     # Link to a single EventBooking containing multiple sessions
     booking = models.ForeignKey(
         "eventbooking.EventBooking",
@@ -55,6 +62,8 @@ class Payment(models.Model):
         return self.payment_date.strftime("%d-%m-%Y")
 
     def save(self, *args, **kwargs):
+        if self.booking_id and not self.branch_profile_id:
+            self.branch_profile = self.booking.branch_profile
         super().save(*args, **kwargs)
 
 

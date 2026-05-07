@@ -2,7 +2,14 @@ from django.db import models
 
 
 class GroundCategory(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="ground_categories",
+    )
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
 
@@ -14,6 +21,13 @@ class GroundCategory(models.Model):
 
 
 class GroundItem(models.Model):
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="ground_items",
+    )
     name = models.CharField(max_length=150)
     category = models.ForeignKey(
         GroundCategory, on_delete=models.PROTECT, related_name="ground_items"
@@ -35,7 +49,14 @@ class GroundItem(models.Model):
 
 
 class GroundChecklistTemplate(models.Model):
-    name = models.CharField(max_length=120, unique=True)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="ground_checklist_templates",
+    )
+    name = models.CharField(max_length=120)
     description = models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_default = models.BooleanField(default=False)

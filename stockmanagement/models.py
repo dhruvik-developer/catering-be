@@ -1,7 +1,14 @@
 from django.db import models
 
 class StokeCategory(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="stock_categories",
+    )
+    name = models.CharField(max_length=100)
 
     def __str__(self):
         return self.name
@@ -17,7 +24,14 @@ class StokeItem(models.Model):
         ("QTY", "જથ્થો"),  # Quantity
     ]
 
-    name = models.CharField(max_length=200, unique=True)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="stock_items",
+    )
+    name = models.CharField(max_length=200)
     category = models.ForeignKey(
         StokeCategory, on_delete=models.CASCADE, related_name="stokeitem"
     )

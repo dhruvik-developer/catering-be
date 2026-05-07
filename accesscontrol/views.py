@@ -15,6 +15,7 @@ from radha.Utils.permissions import (
     get_effective_permission_codes,
     get_tenant_enabled_module_codes,
 )
+from user.branching import is_main_tenant_admin
 
 
 UserModel = get_user_model()
@@ -79,7 +80,12 @@ class PermissionSubjectListAPIView(generics.GenericAPIView):
         if user_type == "vendor":
             return queryset.filter(vendor_profile__isnull=False)
         if user_type == "admin":
-            return queryset.filter(is_staff=True)
+            queryset = queryset.filter(is_staff=True)
+
+        tenant = get_request_tenant(self.request)
+        if tenant is not None and not is_main_tenant_admin(self.request.user):
+            branch_id = getattr(self.request.user, "branch_profile_id", None)
+            queryset = queryset.filter(branch_profile_id=branch_id) if branch_id else queryset.none()
         return queryset
 
     def get(self, request):
@@ -104,6 +110,10 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
             "staff_profile__role",
             "vendor_profile",
         )
+        tenant = get_request_tenant(self.request)
+        if tenant is not None and not is_main_tenant_admin(self.request.user):
+            branch_id = getattr(self.request.user, "branch_profile_id", None)
+            queryset = queryset.filter(branch_profile_id=branch_id) if branch_id else queryset.none()
         return get_object_or_404(queryset, id=user_id)
 
     def get(self, request, user_id):

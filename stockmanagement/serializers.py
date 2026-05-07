@@ -11,6 +11,7 @@ class StokeItemSerializer(serializers.ModelSerializer):
         model = StokeItem
         fields = [
             "id",
+            "branch_profile",
             "name",
             "category",
             "quantity",
@@ -19,6 +20,7 @@ class StokeItemSerializer(serializers.ModelSerializer):
             "nte_price",
             "total_price",
         ]
+        read_only_fields = ["branch_profile"]
 
     def validate(self, attrs):
         quantity = attrs.get("quantity", getattr(self.instance, "quantity", 0))
@@ -44,4 +46,5 @@ class StokeCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StokeCategory
-        fields = ["id", "name", "stokeitem"]
+        fields = ["id", "branch_profile", "name", "stokeitem"]
+        read_only_fields = ["branch_profile"]

@@ -46,6 +46,15 @@ class SubscriptionPlan(models.Model):
 
 
 class UserModel(AbstractUser):
+    BRANCH_ROLE_MAIN_ADMIN = "main_admin"
+    BRANCH_ROLE_BRANCH_ADMIN = "branch_admin"
+    BRANCH_ROLE_BRANCH_USER = "branch_user"
+    BRANCH_ROLE_CHOICES = (
+        (BRANCH_ROLE_MAIN_ADMIN, "Main Tenant Admin"),
+        (BRANCH_ROLE_BRANCH_ADMIN, "Branch Admin"),
+        (BRANCH_ROLE_BRANCH_USER, "Branch User"),
+    )
+
     id = models.UUIDField(
         primary_key=True, default=uuid.uuid4, editable=False, unique=True
     )
@@ -55,6 +64,11 @@ class UserModel(AbstractUser):
         blank=True,
         null=True,
         related_name="users",
+    )
+    branch_role = models.CharField(
+        max_length=30,
+        choices=BRANCH_ROLE_CHOICES,
+        default=BRANCH_ROLE_BRANCH_USER,
     )
 
     @property

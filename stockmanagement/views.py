@@ -1,6 +1,11 @@
 from rest_framework.response import Response
 from rest_framework import status, generics
 from radha.Utils.permissions import *
+from user.branching import (
+    ensure_object_in_user_branch,
+    filter_branch_queryset,
+    get_branch_save_kwargs,
+)
 from radha.Utils.unit_normalizer import (
     default_display_unit,
     normalize_unit,
@@ -28,8 +33,11 @@ class StokeCategoryViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "stock_categories"
 
+    def get_queryset(self):
+        return filter_branch_queryset(StokeCategory.objects.all(), self.request)
+
     def post(self, request):
-        if StokeCategory.objects.filter(name=request.data.get("name")).exists():
+        if self.get_queryset().filter(name=request.data.get("name")).exists():
             return Response(
                 {
                     "status": False,
@@ -40,7 +48,7 @@ class StokeCategoryViewSet(generics.GenericAPIView):
             )
         serializer = StokeCategorySerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            serializer.save(**get_branch_save_kwargs(request))
             return Response(
                 {
                     "status": True,
@@ -59,7 +67,7 @@ class StokeCategoryViewSet(generics.GenericAPIView):
         )
 
     def get(self, request):
-        queryset = StokeCategory.objects.all()
+        queryset = self.get_queryset()
         serializer = StokeCategorySerializer(queryset, many=True)
         return Response(
             {
@@ -76,9 +84,12 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "stock_categories"
 
+    def get_queryset(self):
+        return filter_branch_queryset(StokeCategory.objects.all(), self.request)
+
     def put(self, request, pk=None):
         try:
-            category = StokeCategory.objects.get(pk=pk)
+            category = self.get_queryset().get(pk=pk)
             serializer = StokeCategorySerializer(
                 category, data=request.data, partial=True
             )
@@ -112,7 +123,7 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
 
     def delete(self, request, pk=None):
         try:
-            category = StokeCategory.objects.get(pk=pk)
+            category = self.get_queryset().get(pk=pk)
             category.delete()
             return Response(
                 {
@@ -134,7 +145,7 @@ class EditeStokeCategoryViewSet(generics.GenericAPIView):
 
     def get(self, request, pk=None):
         try:
-            category = StokeCategory.objects.get(pk=pk)
+            category = self.get_queryset().get(pk=pk)
             serializer = StokeCategorySerializer(category)
             return Response(
                 {
@@ -163,8 +174,11 @@ class StokeItemViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "stock_items"
 
+    def get_queryset(self):
+        return filter_branch_queryset(StokeItem.objects.all(), self.request)
+
     def get(self, request):
-        queryset = StokeItem.objects.all()
+        queryset = self.get_queryset()
         serializer = StokeItemSerializer(queryset, many=True)
         return Response(
             {
@@ -176,7 +190,7 @@ class StokeItemViewSet(generics.GenericAPIView):
         )
 
     def post(self, request):
-        if StokeItem.objects.filter(name=request.data.get("name")).exists():
+        if self.get_queryset().filter(name=request.data.get("name")).exists():
             return Response(
                 {
                     "status": False,
@@ -187,7 +201,9 @@ class StokeItemViewSet(generics.GenericAPIView):
             )
         serializer = StokeItemSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            category = serializer.validated_data.get("category")
+            ensure_object_in_user_branch(category, request)
+            serializer.save(branch_profile=category.branch_profile)
             return Response(
                 {
                     "status": True,
@@ -211,9 +227,12 @@ class EditStokeItemViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "stock_items"
 
+    def get_queryset(self):
+        return filter_branch_queryset(StokeItem.objects.all(), self.request)
+
     def get(self, request, pk=None):
         try:
-            stokeitem = StokeItem.objects.get(pk=pk)
+            stokeitem = self.get_queryset().get(pk=pk)
             serializer = StokeItemSerializer(stokeitem)
             return Response(
                 {
@@ -235,8 +254,16 @@ class EditStokeItemViewSet(generics.GenericAPIView):
 
     def put(self, request, pk=None):
         try:
-            stokeitem = StokeItem.objects.get(pk=pk)
+            stokeitem = self.get_queryset().get(pk=pk)
             payload = request.data.copy()
+            branch_kwargs = {}
+            if payload.get("category"):
+                category = filter_branch_queryset(
+                    StokeCategory.objects.all(),
+                    request,
+                ).get(pk=payload.get("category"))
+                ensure_object_in_user_branch(category, request)
+                branch_kwargs["branch_profile"] = category.branch_profile
 
             input_quantity = _request_quantity_to_base(
                 payload.get("quantity", 0),
@@ -259,7 +286,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
 
             serializer = StokeItemSerializer(stokeitem, data=payload, partial=True)
             if serializer.is_valid(raise_exception=True):
-                serializer.save()
+                serializer.save(**branch_kwargs)
                 return Response(
                     {
                         "status": True,
@@ -288,7 +315,7 @@ class EditStokeItemViewSet(generics.GenericAPIView):
 
     def delete(self, request, pk=None):
         try:
-            stokeitem = StokeItem.objects.get(pk=pk)
+            stokeitem = self.get_queryset().get(pk=pk)
             stokeitem.delete()
             return Response(
                 {
@@ -316,8 +343,11 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
     permission_classes = [IsOwnerOrAdmin]
     permission_resource = "stock_adjustments"
 
+    def get_queryset(self):
+        return filter_branch_queryset(StokeItem.objects.all(), self.request)
+
     def post(self, request):
-        if not StokeItem.objects.filter(
+        if not self.get_queryset().filter(
             id=request.data.get("id"), name=request.data.get("name")
         ).exists():
             return Response(
@@ -332,7 +362,7 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
         nte_price = request.data.get("nte_price")
         total_price = request.data.get("total_price", None)
         price = ""
-        stoke_item = StokeItem.objects.get(
+        stoke_item = self.get_queryset().get(
             id=request.data.get("id"), name=request.data.get("name")
         )
         quantity_in_base = _request_quantity_to_base(
@@ -383,7 +413,7 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
         )
 
     def put(self, request):
-        if not StokeItem.objects.filter(
+        if not self.get_queryset().filter(
             id=request.data.get("id"), name=request.data.get("name")
         ).exists():
             return Response(
@@ -396,7 +426,7 @@ class AddRemoveStokeItemViewSet(generics.GenericAPIView):
             )
         quantity = request.data.get("quantity")
         total_price = request.data.get("total_price", None)
-        stoke_item = StokeItem.objects.get(
+        stoke_item = self.get_queryset().get(
             id=request.data.get("id"), name=request.data.get("name")
         )
         quantity_in_base = _request_quantity_to_base(

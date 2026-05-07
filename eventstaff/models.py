@@ -23,7 +23,14 @@ def add_months(value, months):
 
 
 class StaffRole(models.Model):
-    name = models.CharField("Role Name", max_length=100, unique=True)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="staff_roles",
+    )
+    name = models.CharField("Role Name", max_length=100)
     description = models.TextField("Role Description", blank=True, null=True)
 
     created_at = models.DateTimeField(default=django.utils.timezone.now)
@@ -60,7 +67,14 @@ class StaffRolePermissionAssignment(models.Model):
 
 
 class WaiterType(models.Model):
-    name = models.CharField("Waiter Type", max_length=120, unique=True)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="waiter_types",
+    )
+    name = models.CharField("Waiter Type", max_length=120)
     description = models.TextField("Description", blank=True, null=True)
     per_person_rate = models.DecimalField(
         "Per Person Rate",
@@ -97,6 +111,13 @@ class Staff(models.Model):
         related_name="staff_profile",
         verbose_name="Login User",
         help_text="Optional login account for this staff member.",
+    )
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="staff_members",
     )
     name = models.CharField("Staff Name", max_length=150)
     phone = models.CharField("Phone Number", max_length=20, blank=True, null=True)

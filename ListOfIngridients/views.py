@@ -1,5 +1,10 @@
 from rest_framework.response import Response
 from rest_framework import status, generics
+from user.branching import (
+    ensure_object_in_user_branch,
+    filter_branch_queryset,
+    get_branch_save_kwargs,
+)
 from radha.Utils.permissions import *
 from .models import *
 from .serializers import *
@@ -13,18 +18,21 @@ class IngridientsCategoryViewset(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "ingredient_categories"
 
+    def get_queryset(self):
+        return filter_branch_queryset(IngridientsCategory.objects.all(), self.request)
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(**get_branch_save_kwargs(request))
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_200_OK)
 
     def get(self,request,pk=None):
         if pk:
-            queryset = IngridientsCategory.objects.filter(pk=pk)
+            queryset = self.get_queryset().filter(pk=pk)
         else:
-            queryset = IngridientsCategory.objects.all()
+            queryset = self.get_queryset()
 
         serializer = IngridientsCategorySerializer(queryset, many=True)
 
@@ -39,7 +47,7 @@ class IngridientsCategoryViewset(generics.GenericAPIView):
 
     def put(self, request, pk=None, *args, **kwargs):
         try:
-            instance = IngridientsCategory.objects.get(pk=pk)
+            instance = self.get_queryset().get(pk=pk)
         except IngridientsCategory.DoesNotExist:
             return Response(
                 {"status": False, "message": "Ingridients Categories not found"},
@@ -53,7 +61,7 @@ class IngridientsCategoryViewset(generics.GenericAPIView):
 
     def delete(self, request, pk=None, *args, **kwargs):
         try:
-            instance = IngridientsCategory.objects.get(pk=pk)
+            instance = self.get_queryset().get(pk=pk)
         except IngridientsCategory.DoesNotExist:
             return Response(
                 {"status": False, "message": "Ingridients Categories not found"},
@@ -74,18 +82,23 @@ class IngridientsItemViewset(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "ingredient_items"
 
+    def get_queryset(self):
+        return filter_branch_queryset(IngridientsItem.objects.all(), self.request)
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            category = serializer.validated_data.get("category")
+            ensure_object_in_user_branch(category, request)
+            serializer.save(branch_profile=category.branch_profile)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_200_OK)
 
     def get(self,request,pk=None):
         if pk:
-            queryset = IngridientsItem.objects.filter(pk=pk)
+            queryset = self.get_queryset().filter(pk=pk)
         else:
-            queryset = IngridientsItem.objects.all()
+            queryset = self.get_queryset()
         serializer = IngridientsItemSerializer(queryset, many=True)
         return Response(
             {
@@ -98,7 +111,7 @@ class IngridientsItemViewset(generics.GenericAPIView):
 
     def put(self, request, pk=None, *args, **kwargs):
         try:
-            instance = IngridientsItem.objects.get(pk=pk)
+            instance = self.get_queryset().get(pk=pk)
         except IngridientsItem.DoesNotExist:
             return Response(
                 {"status": False, "message": "Ingridients Item not found"},
@@ -106,13 +119,18 @@ class IngridientsItemViewset(generics.GenericAPIView):
             )
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if serializer.is_valid():
+            category = serializer.validated_data.get("category")
+            if category:
+                ensure_object_in_user_branch(category, request)
+                serializer.save(branch_profile=category.branch_profile)
+                return Response(serializer.data, status=status.HTTP_200_OK)
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_200_OK)
 
     def delete(self, request, pk=None, *args, **kwargs):
         try:
-            instance = IngridientsItem.objects.get(pk=pk)
+            instance = self.get_queryset().get(pk=pk)
         except IngridientsItem.DoesNotExist:
             return Response(
                 {"status": False, "message": "Ingridients Item not found"},

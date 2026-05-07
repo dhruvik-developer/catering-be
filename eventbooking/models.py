@@ -22,6 +22,13 @@ class EventBooking(models.Model):
         ("done", "Done"),
     ]
     # Basic information
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="event_bookings",
+    )
     name = models.CharField(max_length=100)
     mobile_no = models.CharField(max_length=17)
     date = models.DateField(default=timezone.now)  # Booking creation date

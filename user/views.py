@@ -15,6 +15,7 @@ from tenancy.models import Client as Tenant, Domain
 from tenancy.serializers import ClientSummarySerializer
 from tenancy.utils import normalize_domain, normalize_schema_name
 from .branching import ensure_main_branch_profile
+from .branching import is_branch_admin, is_main_tenant_admin
 from .serializers import (
     BranchProfileSerializer,
     BranchProfileSummarySerializer,
@@ -133,6 +134,10 @@ class LoginViewSet(generics.GenericAPIView):
             tenant is not None
             and getattr(connection, "schema_name", "public") != "public"
             and user.is_staff
+            and (
+                user.branch_role == UserModel.BRANCH_ROLE_MAIN_ADMIN
+                or user.branch_profile_id is None
+            )
         ):
             ensure_main_branch_profile(tenant=tenant, admin_user=user)
 
@@ -159,6 +164,9 @@ class LoginViewSet(generics.GenericAPIView):
             "last_name": user.last_name,
             "email": user.email,
             "user_type": user_type,
+            "branch_role": user.branch_role,
+            "is_main_tenant_admin": is_main_tenant_admin(user),
+            "is_branch_admin": is_branch_admin(user),
             "branch_profile": BranchProfileSummarySerializer(user.branch_profile).data
             if getattr(user, "branch_profile", None)
             else None,
@@ -387,11 +395,11 @@ class UserCreateAPIView(generics.GenericAPIView):
             request_tenant is not None
             and getattr(request_tenant, "schema_name", "public") != "public"
         ):
-            return bool(user.is_staff)
+            return bool(is_main_tenant_admin(user) or is_branch_admin(user))
 
         return bool(
             user.is_superuser
-            or (user.is_staff and getattr(user, "tenant_id", None))
+            or (is_main_tenant_admin(user) and getattr(user, "tenant_id", None))
         )
 
     def get_queryset(self):
@@ -401,7 +409,11 @@ class UserCreateAPIView(generics.GenericAPIView):
             request_tenant is not None
             and getattr(request_tenant, "schema_name", "public") != "public"
         ):
-            return queryset.select_related("branch_profile").order_by("username")
+            queryset = queryset.select_related("branch_profile").order_by("username")
+            if is_main_tenant_admin(self.request.user):
+                return queryset
+            branch_id = getattr(self.request.user, "branch_profile_id", None)
+            return queryset.filter(branch_profile_id=branch_id) if branch_id else queryset.none()
         if self.request.user.is_superuser:
             return queryset.select_related("branch_profile").order_by("username")
         if self.request.user.is_staff and self.request.user.tenant_id:
@@ -465,7 +477,7 @@ class BranchProfileListCreateAPIView(generics.GenericAPIView):
         return super().dispatch(request, *args, **kwargs)
 
     def _is_tenant_admin(self, request):
-        return bool(request.user.is_staff or request.user.is_superuser)
+        return is_main_tenant_admin(request.user)
 
     def _sync_manager_branch(self, branch):
         if branch.manager_id and branch.manager.branch_profile_id != branch.id:
@@ -541,7 +553,7 @@ class BranchProfileDetailAPIView(generics.GenericAPIView):
         return super().dispatch(request, *args, **kwargs)
 
     def _is_tenant_admin(self, request):
-        return bool(request.user.is_staff or request.user.is_superuser)
+        return is_main_tenant_admin(request.user)
 
     def _sync_manager_branch(self, branch):
         if branch.manager_id and branch.manager.branch_profile_id != branch.id:
@@ -653,7 +665,7 @@ class BranchProfileUsersAPIView(generics.GenericAPIView):
 
     def get_branch(self, request, id):
         queryset = BranchProfile.objects.all()
-        if not (request.user.is_staff or request.user.is_superuser):
+        if not is_main_tenant_admin(request.user):
             queryset = queryset.filter(id=getattr(request.user, "branch_profile_id", None))
         return get_object_or_404(queryset, id=id)
 
@@ -683,7 +695,7 @@ class UserBranchAssignmentAPIView(generics.GenericAPIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_user(self, request, id):
-        if not (request.user.is_staff or request.user.is_superuser):
+        if not is_main_tenant_admin(request.user):
             raise PermissionDenied("Only tenant admin can assign users to branches.")
         return get_object_or_404(
             UserModel.objects.select_related("branch_profile"),

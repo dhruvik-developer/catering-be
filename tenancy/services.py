@@ -120,6 +120,7 @@ def create_tenant_admin_user(tenant, admin_data):
             is_active=True,
             is_staff=True,
             is_superuser=admin_data.get("is_superuser", False),
+            branch_role=UserModel.BRANCH_ROLE_MAIN_ADMIN,
         )
         from user.branching import ensure_main_branch_profile
 

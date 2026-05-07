@@ -11,6 +11,11 @@ from radha.Utils.unit_normalizer import (
     to_readable_quantity_unit,
 )
 from item.models import RecipeIngredient
+from user.branching import (
+    ensure_object_in_user_branch,
+    filter_branch_queryset,
+    get_branch_save_kwargs,
+)
 import difflib
 
 
@@ -128,7 +133,8 @@ def calculate_ingredients_required(session_obj):
             in_house_dish_names.append(dish)
 
     recipe_qs = RecipeIngredient.objects.select_related("item", "ingredient__category").filter(
-        item__name__in=in_house_dish_names
+        item__branch_profile=session_obj.booking.branch_profile,
+        item__name__in=in_house_dish_names,
     )
 
     for ri in recipe_qs:
@@ -146,12 +152,14 @@ def calculate_ingredients_required(session_obj):
 
     from ListOfIngridients.models import IngridientsItem
     # To support spelling variations like Tomato/Tomata, load all items and fallback via fuzzy matching
-    items_with_categories = IngridientsItem.objects.select_related("category").all()
+    items_with_categories = IngridientsItem.objects.select_related("category").filter(
+        branch_profile=session_obj.booking.branch_profile
+    )
     category_map = {item.name.strip().lower(): item.category.name for item in items_with_categories}
 
     from stockmanagement.models import StokeItem
     # To support spelling variations, load all stock items and then fuzzy-search names
-    stock_items = StokeItem.objects.all()
+    stock_items = StokeItem.objects.filter(branch_profile=session_obj.booking.branch_profile)
     stock_map = {}
     for item in stock_items:
         readable_quantity, readable_type = to_readable_quantity_unit(
@@ -218,9 +226,15 @@ def calculate_ingredients_required(session_obj):
         if vendor_info:
             final_ingredients[ingredient]["vendor"] = vendor_info
 
-    common_items = IngridientsItem.objects.filter(category__is_common=True).select_related("category")
+    common_items = IngridientsItem.objects.filter(
+        branch_profile=session_obj.booking.branch_profile,
+        category__is_common=True,
+    ).select_related("category")
     common_names = [item.name for item in common_items]
-    common_stock_items = StokeItem.objects.filter(name__in=common_names)
+    common_stock_items = StokeItem.objects.filter(
+        branch_profile=session_obj.booking.branch_profile,
+        name__in=common_names,
+    )
     common_stock_map = {}
     for item in common_stock_items:
         readable_quantity, readable_type = to_readable_quantity_unit(
@@ -303,6 +317,9 @@ class EventBookingViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "event_bookings"
 
+    def get_queryset(self):
+        return filter_branch_queryset(EventBooking.objects.all(), self.request)
+
     def post(self, request):
         sessions = request.data.get("sessions", [])
 
@@ -333,7 +350,7 @@ class EventBookingViewSet(generics.GenericAPIView):
         serializer = EventBookingSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             created_by = request.user if request.user.is_authenticated else None
-            serializer.save(created_by=created_by)
+            serializer.save(created_by=created_by, **get_branch_save_kwargs(request))
             return Response(
                 {
                     "status": True,
@@ -355,7 +372,7 @@ class EventBookingViewSet(generics.GenericAPIView):
         EventBooking.cancel_expired_pending_bookings()
         requested_session_id = _session_id_from_query(request)
         queryset = (
-            EventBooking.objects.prefetch_related(
+            self.get_queryset().prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -425,9 +442,12 @@ class EventBookingGetViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "event_bookings"
 
+    def get_queryset(self):
+        return filter_branch_queryset(EventBooking.objects.all(), self.request)
+
     def put(self, request, pk=None):
         try:
-            eventbooking = EventBooking.objects.get(pk=pk)
+            eventbooking = self.get_queryset().get(pk=pk)
             sessions = request.data.get("sessions")
 
             if sessions is not None:
@@ -500,7 +520,7 @@ class EventBookingGetViewSet(generics.GenericAPIView):
         EventBooking.cancel_expired_pending_bookings()
         requested_session_id = _session_id_from_query(request)
         try:
-            eventbooking = EventBooking.objects.prefetch_related(
+            eventbooking = self.get_queryset().prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -553,7 +573,7 @@ class EventBookingGetViewSet(generics.GenericAPIView):
 
     def delete(self, request, pk=None):
         try:
-            eventbooking = EventBooking.objects.get(pk=pk)
+            eventbooking = self.get_queryset().get(pk=pk)
             eventbooking.delete()
             return Response(
                 {
@@ -582,10 +602,13 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "event_booking_reports"
 
+    def get_queryset(self):
+        return filter_branch_queryset(EventBooking.objects.all(), self.request)
+
     def get(self, request):
         EventBooking.cancel_expired_pending_bookings()
         queryset = (
-            EventBooking.objects.prefetch_related(
+            self.get_queryset().prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -615,6 +638,11 @@ class EventItemConfigViewSet(generics.ListCreateAPIView):
     
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = filter_branch_queryset(
+            qs,
+            self.request,
+            field_name="session__booking__branch_profile",
+        )
         session_id = _session_id_from_query(self.request)
         if session_id:
             qs = qs.filter(session_id=session_id)
@@ -623,8 +651,13 @@ class EventItemConfigViewSet(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         payload = request.data.copy()
         session_id = _session_id_from_payload(payload)
+        session = None
         if session_id:
             payload["session"] = session_id
+            from .models import EventSession
+
+            session = EventSession.objects.select_related("booking").get(id=session_id)
+            ensure_object_in_user_branch(session.booking, request)
         item_name = payload.get("item_name")
         
         if session_id and item_name:
@@ -649,6 +682,13 @@ class EventItemConfigDetailViewSet(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "event_item_configs"
 
+    def get_queryset(self):
+        return filter_branch_queryset(
+            super().get_queryset(),
+            self.request,
+            field_name="session__booking__branch_profile",
+        )
+
 
 class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
     queryset = IngredientVendorAssignment.objects.all()
@@ -658,6 +698,11 @@ class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = filter_branch_queryset(
+            qs,
+            self.request,
+            field_name="session__booking__branch_profile",
+        )
         session_id = _session_id_from_query(self.request)
         if session_id:
             qs = qs.filter(session_id=session_id)
@@ -667,13 +712,23 @@ class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
         payload = request.data.copy()
         ingredient_name = payload.get("ingredient_name")
         session_id = _session_id_from_payload(payload)
+        session = None
         if session_id:
             payload["session"] = session_id
+            from .models import EventSession
+
+            session = EventSession.objects.select_related("booking").get(id=session_id)
+            ensure_object_in_user_branch(session.booking, request)
         
         # Look up ingredient by name to get its ID
         if ingredient_name:
             from ListOfIngridients.models import IngridientsItem
-            ingredient_obj = IngridientsItem.objects.filter(name__iexact=ingredient_name).first()
+            ingredient_qs = IngridientsItem.objects.filter(name__iexact=ingredient_name)
+            if session is not None:
+                ingredient_qs = ingredient_qs.filter(
+                    branch_profile=session.booking.branch_profile
+                )
+            ingredient_obj = ingredient_qs.first()
             if not ingredient_obj:
                 return Response({"error": f"Ingredient '{ingredient_name}' not found"}, status=400)
             payload["ingredient"] = ingredient_obj.id
@@ -701,6 +756,13 @@ class IngredientVendorAssignmentDetailViewSet(generics.RetrieveUpdateDestroyAPIV
     serializer_class = IngredientVendorAssignmentSerializer
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "ingredient_vendor_assignments"
+
+    def get_queryset(self):
+        return filter_branch_queryset(
+            super().get_queryset(),
+            self.request,
+            field_name="session__booking__branch_profile",
+        )
 
     def perform_update(self, serializer):
         serializer.save(source_type="manual")

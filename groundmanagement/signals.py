@@ -15,7 +15,11 @@ def auto_create_ground_requirements(instance, created, **kwargs):
         return
 
     default_template = (
-        GroundChecklistTemplate.objects.filter(is_active=True, is_default=True)
+        GroundChecklistTemplate.objects.filter(
+            branch_profile=instance.booking.branch_profile,
+            is_active=True,
+            is_default=True,
+        )
         .prefetch_related("template_items__ground_item")
         .first()
     )

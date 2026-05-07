@@ -1,6 +1,11 @@
 from rest_framework.response import Response
 from rest_framework import status, generics
 from django.db import transaction
+from user.branching import (
+    ensure_object_in_user_branch,
+    filter_branch_queryset,
+    get_branch_save_kwargs,
+)
 from radha.Utils.permissions import *
 from .serializers import *
 from django.shortcuts import get_object_or_404
@@ -14,8 +19,20 @@ class CategoryViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "categories"
 
+    def get_queryset(self):
+        return filter_branch_queryset(Category.objects.all(), self.request)
+
     def post(self, request):
-        if Category.objects.filter(name=request.data.get("name")).exists():
+        branch_kwargs = get_branch_save_kwargs(request)
+        parent_id = request.data.get("parent")
+        if parent_id:
+            parent = get_object_or_404(self.get_queryset(), id=parent_id)
+            branch_kwargs["branch_profile"] = parent.branch_profile
+
+        if self.get_queryset().filter(
+            name=request.data.get("name"),
+            parent_id=parent_id,
+        ).exists():
             return Response(
                 {
                     "status": False,
@@ -24,14 +41,13 @@ class CategoryViewSet(generics.GenericAPIView):
                 },
                 status=status.HTTP_200_OK,
             )
-        parent_id = request.data.get("parent")
-        last_category = Category.objects.filter(parent_id=parent_id).order_by('-positions').first()
+        last_category = self.get_queryset().filter(parent_id=parent_id).order_by('-positions').first()
         last_positions = last_category.positions if last_category else 0
 
         request.data["positions"] = last_positions + 1
         serializer = CategorySerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            serializer.save(**branch_kwargs)
             return Response(
                 {
                     "status": True,
@@ -50,7 +66,7 @@ class CategoryViewSet(generics.GenericAPIView):
         )
 
     def get(self, request):
-        queryset = Category.objects.filter(parent__isnull=True).order_by('positions')
+        queryset = self.get_queryset().filter(parent__isnull=True).order_by('positions')
         serializer = CategorySerializer(queryset, many=True)
         return Response(
             {
@@ -67,11 +83,17 @@ class CategoryGetViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "categories"
 
+    def get_queryset(self):
+        return filter_branch_queryset(Category.objects.all(), self.request)
+
     def put(self, request, pk=None):
         try:
-            category = Category.objects.get(pk=pk)
+            category = self.get_queryset().get(pk=pk)
             serializer = CategorySerializer(category, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
+                parent = serializer.validated_data.get("parent")
+                if parent:
+                    ensure_object_in_user_branch(parent, request)
                 serializer.save()
                 return Response(
                     {
@@ -103,14 +125,14 @@ class CategoryGetViewSet(generics.GenericAPIView):
         try:
             with transaction.atomic():
                 # Get the category to be deleted
-                category = get_object_or_404(Category, pk=pk)
+                category = get_object_or_404(self.get_queryset(), pk=pk)
                 deleted_position = category.positions
 
                 # Delete the category
                 category.delete()
 
                 # Update positions of all categories after the deleted one
-                Category.objects.filter(
+                self.get_queryset().filter(
                     positions__gt=deleted_position
                 ).update(positions=models.F("positions") - 1)
 
@@ -127,7 +149,7 @@ class CategoryGetViewSet(generics.GenericAPIView):
 
     def get(self, request, pk=None):
         try:
-            category = Category.objects.get(pk=pk)
+            category = self.get_queryset().get(pk=pk)
             serializer = CategorySerializer(category)
             return Response(
                 {
@@ -153,12 +175,15 @@ class CategoryPositionsChangesViewSet(generics.GenericAPIView):
     permission_classes = [IsOwnerOrAdmin]
     permission_resource = "categories"
 
+    def get_queryset(self):
+        return filter_branch_queryset(Category.objects.all(), self.request)
+
     def post(self, request, pk):
         try:
             new_positions = request.data.get("positions")
 
             # Get the category whose position is being updated
-            category = get_object_or_404(Category, pk=pk)
+            category = get_object_or_404(self.get_queryset(), pk=pk)
             old_positions = category.positions
 
             if old_positions == new_positions:
@@ -173,7 +198,7 @@ class CategoryPositionsChangesViewSet(generics.GenericAPIView):
             # If moving up (better position, smaller number)
             if new_positions < old_positions:
                 # Shift all categories between new_position and old_position down by 1
-                Category.objects.filter(
+                self.get_queryset().filter(
                     parent=category.parent,
                     positions__gte=new_positions, positions__lt=old_positions
                 ).update(positions=models.F("positions") + 1)
@@ -181,7 +206,7 @@ class CategoryPositionsChangesViewSet(generics.GenericAPIView):
             # If moving down (worse position, larger number)
             elif new_positions > old_positions:
                 # Shift all categories between old_position and new_position up by 1
-                Category.objects.filter(
+                self.get_queryset().filter(
                     parent=category.parent,
                     positions__gt=old_positions, positions__lte=new_positions
                 ).update(positions=models.F("positions") - 1)

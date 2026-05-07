@@ -14,7 +14,8 @@ class GroundCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GroundCategory
-        fields = ["id", "name", "description", "is_active", "ground_items"]
+        fields = ["id", "branch_profile", "name", "description", "is_active", "ground_items"]
+        read_only_fields = ["branch_profile"]
 
     def get_ground_items(self, obj):
         items_qs = obj.ground_items.all().order_by("name")
@@ -28,6 +29,7 @@ class GroundItemSerializer(serializers.ModelSerializer):
         model = GroundItem
         fields = [
             "id",
+            "branch_profile",
             "name",
             "category",
             "category_name",
@@ -35,6 +37,7 @@ class GroundItemSerializer(serializers.ModelSerializer):
             "description",
             "is_active",
         ]
+        read_only_fields = ["branch_profile"]
 
 
 class GroundChecklistTemplateItemSerializer(serializers.ModelSerializer):
@@ -58,12 +61,14 @@ class GroundChecklistTemplateSerializer(serializers.ModelSerializer):
         model = GroundChecklistTemplate
         fields = [
             "id",
+            "branch_profile",
             "name",
             "description",
             "is_active",
             "is_default",
             "template_items",
         ]
+        read_only_fields = ["branch_profile"]
 
 
 class EventGroundRequirementSerializer(serializers.ModelSerializer):

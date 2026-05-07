@@ -5,11 +5,13 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
+        read_only_fields = ['branch_profile']
 
 class ExpenseEntitySerializer(serializers.ModelSerializer):
     class Meta:
         model = ExpenseEntity
         fields = '__all__'
+        read_only_fields = ['branch_profile']
 
 class ExpenseSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -19,6 +21,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Expense
         fields = '__all__'
+        read_only_fields = ['branch_profile']
 
     def validate_amount(self, value):
         if value <= 0:

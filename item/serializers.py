@@ -85,7 +85,8 @@ class RecipeIngredientCreateSerializer(serializers.ModelSerializer):
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
-        fields = ["id", "name", "category", "base_cost", "selection_rate"]
+        fields = ["id", "branch_profile", "name", "category", "base_cost", "selection_rate"]
+        read_only_fields = ["branch_profile"]
 
 
 class ItemDetailSerializer(serializers.ModelSerializer):
@@ -95,7 +96,7 @@ class ItemDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Item
-        fields = ["id", "item", "category", "ingredients"]
+        fields = ["id", "branch_profile", "item", "category", "ingredients"]
 
     def get_ingredients(self, obj):
         recipe_qs = obj.recipe_ingredients.select_related("ingredient__category").all()
@@ -114,7 +115,6 @@ class ItemDetailSerializer(serializers.ModelSerializer):
                 }
             )
         return ingredients
-
 
 
 

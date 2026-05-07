@@ -47,12 +47,14 @@ class StaffRoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = StaffRole
         fields = "__all__"
+        read_only_fields = ("branch_profile",)
 
 
 class WaiterTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = WaiterType
         fields = "__all__"
+        read_only_fields = ("branch_profile",)
 
 
 class StaffSerializer(serializers.ModelSerializer):
@@ -94,6 +96,7 @@ class StaffSerializer(serializers.ModelSerializer):
             "login_username",
             "login_password",
             "login_email",
+            "branch_profile",
             "name",
             "phone",
             "role",
@@ -116,6 +119,7 @@ class StaffSerializer(serializers.ModelSerializer):
             "linked_user_id",
             "linked_username",
             "login_enabled",
+            "branch_profile",
             "created_by",
             "created_by_username",
             "created_at",
@@ -191,6 +195,8 @@ class StaffSerializer(serializers.ModelSerializer):
                 password=password,
                 first_name=staff.name,
                 is_active=staff.is_active,
+                branch_profile=staff.branch_profile,
+                branch_role=UserModel.BRANCH_ROLE_BRANCH_USER,
             )
             staff.user_account = linked_user
             staff.save(update_fields=["user_account", "updated_at"])
@@ -203,6 +209,7 @@ class StaffSerializer(serializers.ModelSerializer):
                 linked_user.email = email
             linked_user.first_name = staff.name
             linked_user.is_active = staff.is_active
+            linked_user.branch_profile = staff.branch_profile
             if password:
                 linked_user.set_password(password)
             linked_user.save()
@@ -213,6 +220,18 @@ class StaffSerializer(serializers.ModelSerializer):
             request.user.is_superuser or request.user.is_staff
         ):
             raise PermissionDenied("Only admin allowed.")
+
+        branch_profile = validated_data.get("branch_profile")
+        role = validated_data.get("role")
+        waiter_type = validated_data.get("waiter_type")
+        if role and role.branch_profile_id != getattr(branch_profile, "id", None):
+            raise serializers.ValidationError(
+                {"role": "Staff role must belong to the selected branch."}
+            )
+        if waiter_type and waiter_type.branch_profile_id != getattr(branch_profile, "id", None):
+            raise serializers.ValidationError(
+                {"waiter_type": "Waiter type must belong to the selected branch."}
+            )
 
         staff = Staff.objects.create(
             created_by=request.user,
@@ -226,6 +245,17 @@ class StaffSerializer(serializers.ModelSerializer):
         return staff
 
     def update(self, instance, validated_data):
+        branch_profile = validated_data.get("branch_profile", instance.branch_profile)
+        role = validated_data.get("role", instance.role)
+        waiter_type = validated_data.get("waiter_type", instance.waiter_type)
+        if role and role.branch_profile_id != getattr(branch_profile, "id", None):
+            raise serializers.ValidationError(
+                {"role": "Staff role must belong to the selected branch."}
+            )
+        if waiter_type and waiter_type.branch_profile_id != getattr(branch_profile, "id", None):
+            raise serializers.ValidationError(
+                {"waiter_type": "Waiter type must belong to the selected branch."}
+            )
         for key, value in list(validated_data.items()):
             if key in {"login_username", "login_password", "login_email"}:
                 continue
@@ -280,6 +310,12 @@ class EventStaffAssignmentSerializer(serializers.ModelSerializer):
             staff = self.instance.staff
 
         if staff:
+            session = data.get("session", getattr(self.instance, "session", None))
+            if session and staff.branch_profile_id != session.booking.branch_profile_id:
+                raise serializers.ValidationError(
+                    {"staff": "Staff and event session must belong to the same branch."}
+                )
+
             if staff.staff_type == "Fixed":
                 calc_amount = Decimal("0.00")
             else:

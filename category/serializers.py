@@ -10,12 +10,14 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = [
             "id",
+            "branch_profile",
             "name",
             "positions",
             "items",
             "parent",
             "subcategories",
         ]
+        read_only_fields = ["branch_profile"]
 
     def get_subcategories(self, obj):
         # Only return one level of subcategories to avoid deep recursion if needed,

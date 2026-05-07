@@ -5,6 +5,13 @@ from ListOfIngridients.models import IngridientsCategory
 
 # Create your models here.
 class Vendor(models.Model):
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="vendors",
+    )
     user_account = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

@@ -4,6 +4,11 @@ from django.shortcuts import get_object_or_404
 from .models import Expense, Category
 from .serializers import ExpenseSerializer, CategorySerializer
 from radha.Utils.permissions import IsAdminUserOrReadOnly
+from user.branching import (
+    ensure_object_in_user_branch,
+    filter_branch_queryset,
+    get_branch_save_kwargs,
+)
 
 
 class ExpenseView(generics.GenericAPIView):
@@ -13,7 +18,10 @@ class ExpenseView(generics.GenericAPIView):
 
     def get_queryset(self):
         # Prefetch category and entity for performance improvement
-        return Expense.objects.select_related("category", "entity").order_by("-date")
+        return filter_branch_queryset(
+            Expense.objects.select_related("category", "entity").order_by("-date"),
+            self.request,
+        )
 
     def get(self, request):
         queryset = self.get_queryset()
@@ -32,7 +40,10 @@ class ExpenseView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
 
         if serializer.is_valid():
-            serializer.save()
+            category = serializer.validated_data.get("category")
+            if category:
+                ensure_object_in_user_branch(category, request)
+            serializer.save(**get_branch_save_kwargs(request))
             return Response(
                 {
                     "status": True,
@@ -58,7 +69,10 @@ class ExpenseDetailView(generics.GenericAPIView):
     permission_resource = "expense_entries"
 
     def get_object(self, pk):
-        return get_object_or_404(Expense, pk=pk)
+        return get_object_or_404(self.get_queryset(), pk=pk)
+
+    def get_queryset(self):
+        return filter_branch_queryset(Expense.objects.all(), self.request)
 
     def get(self, request, pk=None):
         expense = self.get_object(pk)
@@ -117,7 +131,10 @@ class CategoryView(generics.GenericAPIView):
     permission_resource = "expense_categories"
 
     def get(self, request):
-        queryset = Category.objects.all().order_by("name")
+        queryset = filter_branch_queryset(
+            Category.objects.all().order_by("name"),
+            request,
+        )
         serializer = self.serializer_class(queryset, many=True)
 
         return Response(
@@ -133,7 +150,7 @@ class CategoryView(generics.GenericAPIView):
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            serializer.save(**get_branch_save_kwargs(request))
             return Response(
                 {
                     "status": True,
@@ -151,7 +168,7 @@ class CategoryDetailView(generics.GenericAPIView):
 
     def get_object(self, pk):
         try:
-            return Category.objects.get(pk=pk)
+            return filter_branch_queryset(Category.objects.all(), self.request).get(pk=pk)
         except Category.DoesNotExist:
             return None
 

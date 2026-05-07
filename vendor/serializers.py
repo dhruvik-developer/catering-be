@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from .models import Vendor, VendorCategory
 from ListOfIngridients.models import IngridientsCategory
+from user.branching import ensure_object_in_user_branch, get_branch_save_kwargs
 
 UserModel = get_user_model()
 MIN_LOGIN_PASSWORD_LENGTH = 8
@@ -60,6 +61,7 @@ class VendorSerializer(serializers.ModelSerializer):
             "login_username",
             "login_password",
             "login_email",
+            "branch_profile",
             "name",
             "mobile_no",
             "address",
@@ -73,6 +75,7 @@ class VendorSerializer(serializers.ModelSerializer):
             "linked_user_id",
             "linked_username",
             "login_enabled",
+            "branch_profile",
             "created_by",
             "created_by_username",
         ]
@@ -136,6 +139,8 @@ class VendorSerializer(serializers.ModelSerializer):
                 password=password,
                 first_name=vendor.name,
                 is_active=vendor.is_active,
+                branch_profile=vendor.branch_profile,
+                branch_role=UserModel.BRANCH_ROLE_BRANCH_USER,
             )
             vendor.user_account = linked_user
             vendor.save(update_fields=["user_account"])
@@ -148,6 +153,7 @@ class VendorSerializer(serializers.ModelSerializer):
                 linked_user.email = email
             linked_user.first_name = vendor.name
             linked_user.is_active = vendor.is_active
+            linked_user.branch_profile = vendor.branch_profile
             if password:
                 linked_user.set_password(password)
             linked_user.save()
@@ -160,8 +166,10 @@ class VendorSerializer(serializers.ModelSerializer):
             raise PermissionDenied("Only admin allowed.")
 
         categories_data = validated_data.pop("vendor_categories", [])
+        branch_kwargs = get_branch_save_kwargs(request)
         vendor = Vendor.objects.create(
             created_by=request.user,
+            **branch_kwargs,
             **{
                 key: value
                 for key, value in validated_data.items()
@@ -170,6 +178,7 @@ class VendorSerializer(serializers.ModelSerializer):
         )
 
         for cat_data in categories_data:
+            ensure_object_in_user_branch(cat_data["category"], request)
             VendorCategory.objects.create(
                 vendor=vendor,
                 category=cat_data["category"],
@@ -192,6 +201,9 @@ class VendorSerializer(serializers.ModelSerializer):
             instance.vendor_categories.all().delete()
 
             for cat_data in categories_data:
+                request = self.context.get("request")
+                if request is not None:
+                    ensure_object_in_user_branch(cat_data["category"], request)
                 VendorCategory.objects.create(
                     vendor=instance,
                     category=cat_data["category"],

@@ -9,6 +9,11 @@ from rest_framework.response import Response
 
 from eventbooking.models import EventBooking
 from radha.Utils.permissions import IsAdminUserOrReadOnly
+from user.branching import (
+    ensure_object_in_user_branch,
+    filter_branch_queryset,
+    get_branch_save_kwargs,
+)
 
 from .models import (
     EventStaffAssignment,
@@ -45,6 +50,12 @@ class StaffRoleViewSet(viewsets.ModelViewSet):
     search_fields = ["name"]
     ordering_fields = ["name", "created_at"]
 
+    def get_queryset(self):
+        return filter_branch_queryset(super().get_queryset(), self.request)
+
+    def perform_create(self, serializer):
+        serializer.save(**get_branch_save_kwargs(self.request))
+
 
 class WaiterTypeViewSet(viewsets.ModelViewSet):
     queryset = WaiterType.objects.all().order_by("name")
@@ -59,6 +70,12 @@ class WaiterTypeViewSet(viewsets.ModelViewSet):
     filterset_fields = ["is_active"]
     search_fields = ["name"]
     ordering_fields = ["name", "per_person_rate"]
+
+    def get_queryset(self):
+        return filter_branch_queryset(super().get_queryset(), self.request)
+
+    def perform_create(self, serializer):
+        serializer.save(**get_branch_save_kwargs(self.request))
 
 
 class StaffViewSet(viewsets.ModelViewSet):
@@ -81,10 +98,16 @@ class StaffViewSet(viewsets.ModelViewSet):
     search_fields = ["name", "phone", "user_account__username"]
     ordering_fields = ["name", "created_at", "per_person_rate"]
 
+    def get_queryset(self):
+        return filter_branch_queryset(super().get_queryset(), self.request)
+
     def create(self, request, *args, **kwargs):
         if not (request.user.is_superuser or request.user.is_staff):
             raise PermissionDenied("Only admin can create this resource.")
         return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(**get_branch_save_kwargs(self.request))
 
     @action(detail=False, methods=["get"], url_path="waiters")
     def waiters(self, request):
@@ -96,7 +119,7 @@ class StaffViewSet(viewsets.ModelViewSet):
             query_filters["waiter_type__name__iexact"] = waiter_type_name
 
         waiters = (
-            Staff.objects.filter(**query_filters)
+            filter_branch_queryset(Staff.objects.filter(**query_filters), request)
             .values(
                 "id",
                 "name",
@@ -280,6 +303,7 @@ class FixedStaffSalaryPaymentViewSet(viewsets.ModelViewSet):
             .all()
             .order_by("-start_date", "-created_at")
         )
+        qs = filter_branch_queryset(qs, self.request, field_name="staff__branch_profile")
 
         staff_id = self.request.query_params.get("staff")
         if staff_id:
@@ -297,6 +321,7 @@ class FixedStaffSalaryPaymentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         staff = serializer.validated_data["staff"]
+        ensure_object_in_user_branch(staff, self.request)
         months_count = serializer.validated_data["months_count"]
         fixed_salary = staff.fixed_salary or Decimal("0.00")
         gross_amount = fixed_salary * Decimal(str(months_count))
@@ -351,7 +376,11 @@ class StaffWithdrawalViewSet(viewsets.ModelViewSet):
     ordering_fields = ["payment_date", "amount", "created_at"]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = filter_branch_queryset(
+            super().get_queryset(),
+            self.request,
+            field_name="staff__branch_profile",
+        )
         staff_id = self.request.query_params.get("staff")
         if staff_id:
             qs = qs.filter(staff_id=staff_id)
@@ -386,6 +415,7 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
             .all()
             .order_by("-created_at")
         )
+        qs = filter_branch_queryset(qs, self.request, field_name="staff__branch_profile")
 
         staff_type = self.request.query_params.get("staff_type")
         if staff_type:
@@ -396,7 +426,7 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="event-summary")
     def event_summary(self, request):
         events = (
-            EventBooking.objects.annotate(
+            filter_branch_queryset(EventBooking.objects, request).annotate(
                 total_labor=Count(
                     "sessions__staff_assignments",
                     filter=Q(sessions__staff_assignments__role_at_event__name="Labor"),

@@ -170,6 +170,7 @@ class EventBookingSerializer(serializers.ModelSerializer):
         model = EventBooking
         fields = [
             "id",  # Include the primary key for reference
+            "branch_profile",
             "name",
             "mobile_no",
             "date",
@@ -183,7 +184,7 @@ class EventBookingSerializer(serializers.ModelSerializer):
             "created_by",
             "created_by_username",
         ]
-        read_only_fields = ["created_by", "created_by_username"]
+        read_only_fields = ["branch_profile", "created_by", "created_by_username"]
 
     def create(self, validated_data):
         sessions_data = validated_data.pop("sessions", [])
@@ -241,7 +242,10 @@ class EventBookingSerializer(serializers.ModelSerializer):
             if not isinstance(items, list):
                 continue
 
-            category = GroundCategory.objects.filter(name=category_name).first()
+            category = GroundCategory.objects.filter(
+                branch_profile=booking.branch_profile,
+                name=category_name,
+            ).first()
             if not category:
                 continue
 
@@ -254,6 +258,7 @@ class EventBookingSerializer(serializers.ModelSerializer):
                     continue
 
                 ground_item = GroundItem.objects.filter(
+                    branch_profile=booking.branch_profile,
                     category=category, name=item_name
                 ).first()
                 if not ground_item:

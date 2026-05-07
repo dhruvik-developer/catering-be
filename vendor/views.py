@@ -5,6 +5,7 @@ from django.db import transaction
 from .models import Vendor
 from .serializers import VendorSerializer
 from radha.Utils.permissions import IsAdminUserOrReadOnly
+from user.branching import filter_branch_queryset
 
 
 class VendorListCreateAPIView(generics.GenericAPIView):
@@ -14,7 +15,7 @@ class VendorListCreateAPIView(generics.GenericAPIView):
     permission_resource = "vendors"
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = filter_branch_queryset(super().get_queryset(), self.request)
         category_id = self.request.query_params.get("category_id")
 
         if category_id:
@@ -50,6 +51,9 @@ class VendorDetailAPIView(generics.GenericAPIView):
     queryset = Vendor.objects.select_related("user_account").prefetch_related("vendor_categories__category")
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "vendors"
+
+    def get_queryset(self):
+        return filter_branch_queryset(super().get_queryset(), self.request)
 
     def get_object(self, pk):
         return self.get_queryset().filter(pk=pk).first()

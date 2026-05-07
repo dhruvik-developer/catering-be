@@ -20,7 +20,11 @@ from tenancy.services import (
 from user.tenanting import normalize_schema_name, provision_tenant_schema
 
 from tenancy.models import Client, SubscriptionPlan
-from .branching import ensure_main_branch_profile
+from .branching import (
+    ensure_main_branch_profile,
+    is_branch_admin,
+    is_main_tenant_admin,
+)
 from .models import BranchProfile, BusinessProfile, Note, UserModel
 
 
@@ -342,6 +346,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
     )
     tenant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     is_staff = serializers.BooleanField(required=False, default=False)
+    branch_role = serializers.ChoiceField(
+        choices=UserModel.BRANCH_ROLE_CHOICES,
+        required=False,
+    )
     module_codes = serializers.ListField(
         child=serializers.CharField(),
         write_only=True,
@@ -369,6 +377,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "branch_profile_id",
             "tenant_id",
             "is_staff",
+            "branch_role",
             "is_active",
             "module_codes",
             "allowed_permissions",
@@ -392,11 +401,18 @@ class UserCreateSerializer(serializers.ModelSerializer):
             active_tenant is not None
             and getattr(active_tenant, "schema_name", "public") != "public"
         ):
-            if actor.is_staff:
-                if attrs.get("is_staff"):
+            if is_main_tenant_admin(actor):
+                return active_tenant
+            if is_branch_admin(actor):
+                if attrs.get("is_staff") or attrs.get("branch_role") in {
+                    UserModel.BRANCH_ROLE_MAIN_ADMIN,
+                    UserModel.BRANCH_ROLE_BRANCH_ADMIN,
+                }:
                     raise PermissionDenied(
-                        "Tenant admin cannot create another admin user."
+                        "Branch admin cannot create another admin user."
                     )
+                attrs["branch_profile"] = actor.branch_profile
+                attrs["branch_role"] = UserModel.BRANCH_ROLE_BRANCH_USER
                 actor._active_tenant = active_tenant
                 return active_tenant
             raise PermissionDenied("Only tenant admin can create this resource.")
@@ -404,9 +420,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         if actor.is_superuser:
             return None
 
-        if actor.is_staff and getattr(actor, "tenant_id", None):
-            if attrs.get("is_staff"):
-                raise PermissionDenied("Tenant admin cannot create another admin user.")
+        if is_main_tenant_admin(actor) and getattr(actor, "tenant_id", None):
             return actor.tenant
 
         raise PermissionDenied("Only platform admin or tenant admin allowed.")
@@ -509,6 +523,30 @@ class UserCreateSerializer(serializers.ModelSerializer):
             module_codes=attrs.get("module_codes", []),
             permission_codes=attrs.get("allowed_permissions", []),
         )
+        if tenant is not None:
+            if attrs.get("is_staff"):
+                attrs["branch_role"] = attrs.get(
+                    "branch_role",
+                    UserModel.BRANCH_ROLE_BRANCH_ADMIN,
+                )
+            else:
+                attrs["branch_role"] = attrs.get(
+                    "branch_role",
+                    UserModel.BRANCH_ROLE_BRANCH_USER,
+                )
+
+            if attrs["branch_role"] == UserModel.BRANCH_ROLE_MAIN_ADMIN:
+                raise serializers.ValidationError(
+                    {"branch_role": "Main admin is created only during tenant creation."}
+                )
+
+            if attrs["branch_role"] == UserModel.BRANCH_ROLE_BRANCH_ADMIN:
+                attrs["is_staff"] = True
+
+            if attrs.get("branch_profile") is None:
+                raise serializers.ValidationError(
+                    {"branch_profile_id": "Branch is required for tenant users."}
+                )
         attrs["_tenant"] = tenant
         return attrs
 
@@ -527,6 +565,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "last_name": validated_data.get("last_name", ""),
             "branch_profile": branch_profile,
             "is_staff": validated_data.get("is_staff", False),
+            "branch_role": validated_data.get(
+                "branch_role",
+                UserModel.BRANCH_ROLE_BRANCH_USER,
+            ),
             "is_active": validated_data.get("is_active", True),
         }
         if tenant is not None and hasattr(tenant, "users"):

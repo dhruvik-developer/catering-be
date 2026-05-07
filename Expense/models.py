@@ -1,6 +1,13 @@
 from django.db import models
 
 class Category(models.Model):
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="expense_categories",
+    )
     name = models.CharField(max_length=100)
 
     def __str__(self):
@@ -12,6 +19,13 @@ class ExpenseEntity(models.Model):
         ('VENDOR', 'Vendor'),
         ('OTHER', 'Other'),
     ]
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="expense_entities",
+    )
     name = models.CharField(max_length=200)
     entity_type = models.CharField(
         max_length=50,
@@ -33,6 +47,13 @@ class Expense(models.Model):
     ]
 
     title = models.CharField(max_length=200)
+    branch_profile = models.ForeignKey(
+        "user.BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="expenses",
+    )
     description = models.TextField(blank=True, null=True)  # Optional field
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     category = models.ForeignKey(

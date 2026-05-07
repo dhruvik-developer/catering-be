@@ -4,6 +4,7 @@ from Expense.models import Expense
 from eventstaff.models import EventStaffAssignment, FixedStaffSalaryPayment
 from django.db.models import Sum, Case, When, F, Value, DecimalField
 from radha.Utils.permissions import *
+from user.branching import ensure_object_in_user_branch, filter_branch_queryset
 from .serializers import *
 from datetime import date
 from decimal import Decimal
@@ -17,8 +18,11 @@ class PaymentViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "payments"
 
+    def get_queryset(self):
+        return filter_branch_queryset(Payment.objects.all(), self.request)
+
     def get(self, request):
-        payments = Payment.objects.all().order_by("-payment_date")
+        payments = self.get_queryset().order_by("-payment_date")
         serializer = PaymentSerializer(payments, many=True)
         return Response(
             {
@@ -39,6 +43,7 @@ class PaymentViewSet(generics.GenericAPIView):
                     {"status": False, "message": "booking is required", "data": {}},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            ensure_object_in_user_branch(booking, request)
 
             total_amount = data.get("total_amount", 0)
             total_extra_amount = data.get("total_extra_amount", 0)
@@ -53,7 +58,7 @@ class PaymentViewSet(generics.GenericAPIView):
                 tx_amount = data.get("advance_amount", 0)
 
             # Check if this booking already has a PAID payment
-            existing_paid = Payment.objects.filter(
+            existing_paid = self.get_queryset().filter(
                 booking=booking, payment_status="PAID"
             ).first()
             if existing_paid:
@@ -67,7 +72,7 @@ class PaymentViewSet(generics.GenericAPIView):
                 )
 
             # Check for partial/unpaid payments for THIS booking
-            existing_payment = Payment.objects.filter(
+            existing_payment = self.get_queryset().filter(
                 booking=booking, payment_status__in=["PARTIAL", "UNPAID"]
             ).first()
             if existing_payment:
@@ -135,6 +140,7 @@ class PaymentViewSet(generics.GenericAPIView):
                 payment_status = "PAID" if pending_amount <= 0 else ("PARTIAL" if tx_amount > 0 else "UNPAID")
                 
                 payment = serializer.save(
+                    branch_profile=booking.branch_profile,
                     advance_amount=tx_amount,
                     pending_amount=pending_amount,
                     payment_status=payment_status
@@ -171,9 +177,12 @@ class EditPaymentViewSet(generics.GenericAPIView):
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "payments"
 
+    def get_queryset(self):
+        return filter_branch_queryset(Payment.objects.all(), self.request)
+
     def get(self, request, pk=None):
         try:
-            payment = Payment.objects.get(pk=pk)
+            payment = self.get_queryset().get(pk=pk)
             serializer = PaymentSerializer(payment)
             return Response(
                 {
@@ -195,7 +204,7 @@ class EditPaymentViewSet(generics.GenericAPIView):
 
     def put(self, request, pk=None):
         try:
-            payment = Payment.objects.get(pk=pk)
+            payment = self.get_queryset().get(pk=pk)
             transaction_amount = request.data.get("transaction_amount")
             settlement_amount = request.data.get("settlement_amount")
             payment_mode = request.data.get("payment_mode", "OTHER")
@@ -300,7 +309,7 @@ class EditPaymentViewSet(generics.GenericAPIView):
 
     def delete(self, request, pk=None):
         try:
-            payment = Payment.objects.get(pk=pk)
+            payment = self.get_queryset().get(pk=pk)
             payment.delete()
             return Response(
                 {
@@ -327,10 +336,19 @@ class AllTransactionViewSet(generics.GenericAPIView):
 
     def get(self, request):
 
-        payments = Payment.objects.all()
+        payments = filter_branch_queryset(Payment.objects.all(), request)
         expenses = Expense.objects.all()
-        staff_assignments = EventStaffAssignment.objects.all()
-        fixed_salary_payments = FixedStaffSalaryPayment.objects.all()
+        expenses = filter_branch_queryset(expenses, request)
+        staff_assignments = filter_branch_queryset(
+            EventStaffAssignment.objects.all(),
+            request,
+            field_name="staff__branch_profile",
+        )
+        fixed_salary_payments = filter_branch_queryset(
+            FixedStaffSalaryPayment.objects.all(),
+            request,
+            field_name="staff__branch_profile",
+        )
 
         if (
             not payments.exists()
