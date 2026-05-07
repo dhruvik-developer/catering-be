@@ -21,6 +21,7 @@ class Command(BaseCommand):
 
         if options["print_catalog"]:
             self.stdout.write(json.dumps(catalog, indent=2))
+            return
 
         result = sync_permission_catalog(catalog=catalog)
 

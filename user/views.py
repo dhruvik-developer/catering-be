@@ -8,12 +8,17 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.auth import authenticate
 from django.db import connection
 from django.http import JsonResponse
-from .models import UserModel, Note, BusinessProfile, SubscriptionPlan
+from .models import BranchProfile, UserModel, Note, BusinessProfile, SubscriptionPlan
+from django.db.models import Count
 from django_tenants.utils import schema_context, tenant_context
 from tenancy.models import Client as Tenant, Domain
 from tenancy.serializers import ClientSummarySerializer
 from tenancy.utils import normalize_domain, normalize_schema_name
+from .branching import ensure_main_branch_profile
 from .serializers import (
+    BranchProfileSerializer,
+    BranchProfileSummarySerializer,
+    UserBranchAssignmentSerializer,
     LoginSerializer,
     NoteSerializer,
     SubscriptionPlanSerializer,
@@ -124,6 +129,13 @@ class LoginViewSet(generics.GenericAPIView):
         if tenant is not None:
             user._active_tenant = tenant
 
+        if (
+            tenant is not None
+            and getattr(connection, "schema_name", "public") != "public"
+            and user.is_staff
+        ):
+            ensure_main_branch_profile(tenant=tenant, admin_user=user)
+
         if tenant is not None and not tenant.has_active_subscription:
             return Response(
                 {
@@ -147,6 +159,9 @@ class LoginViewSet(generics.GenericAPIView):
             "last_name": user.last_name,
             "email": user.email,
             "user_type": user_type,
+            "branch_profile": BranchProfileSummarySerializer(user.branch_profile).data
+            if getattr(user, "branch_profile", None)
+            else None,
             "permissions": sorted(get_effective_permission_codes(user)),
             "tenant": (
                 ClientSummarySerializer(tenant).data
@@ -386,11 +401,13 @@ class UserCreateAPIView(generics.GenericAPIView):
             request_tenant is not None
             and getattr(request_tenant, "schema_name", "public") != "public"
         ):
-            return queryset.order_by("username")
+            return queryset.select_related("branch_profile").order_by("username")
         if self.request.user.is_superuser:
-            return queryset.order_by("username")
+            return queryset.select_related("branch_profile").order_by("username")
         if self.request.user.is_staff and self.request.user.tenant_id:
-            return queryset.filter(tenant=self.request.user.tenant).order_by("username")
+            return queryset.filter(tenant=self.request.user.tenant).select_related(
+                "branch_profile"
+            ).order_by("username")
         return queryset.none()
 
     def post(self, request):
@@ -432,6 +449,293 @@ class UserCreateAPIView(generics.GenericAPIView):
         user.delete()
         return Response(
             {"status": True, "message": "User deleted successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class BranchProfileListCreateAPIView(generics.GenericAPIView):
+    serializer_class = BranchProfileSerializer
+    permission_classes = [IsAuthenticated]
+    permission_resource = "branch_profiles"
+
+    def dispatch(self, request, *args, **kwargs):
+        guard = _tenant_only_guard()
+        if guard is not None:
+            return guard
+        return super().dispatch(request, *args, **kwargs)
+
+    def _is_tenant_admin(self, request):
+        return bool(request.user.is_staff or request.user.is_superuser)
+
+    def _sync_manager_branch(self, branch):
+        if branch.manager_id and branch.manager.branch_profile_id != branch.id:
+            branch.manager.branch_profile = branch
+            branch.manager.save(update_fields=["branch_profile"])
+
+    def get_queryset(self):
+        queryset = (
+            BranchProfile.objects.select_related(
+                "manager",
+                "created_by",
+            ).annotate(users_count=Count("users"))
+        )
+        if self._is_tenant_admin(self.request):
+            return queryset.order_by("-is_main", "city", "name")
+
+        branch_id = getattr(self.request.user, "branch_profile_id", None)
+        if branch_id:
+            return queryset.filter(id=branch_id)
+        return queryset.none()
+
+    def get(self, request):
+        if self._is_tenant_admin(request) and not self.get_queryset().exists():
+            ensure_main_branch_profile(
+                tenant=getattr(request, "tenant", None),
+                admin_user=request.user,
+            )
+
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return Response(
+            {
+                "status": True,
+                "message": "Branch profiles fetched successfully.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        if not self._is_tenant_admin(request):
+            return Response(
+                {
+                    "status": False,
+                    "message": "Only tenant admin can create branch profiles.",
+                    "data": {},
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        branch = serializer.save(created_by=request.user)
+        self._sync_manager_branch(branch)
+        return Response(
+            {
+                "status": True,
+                "message": "Branch profile created successfully.",
+                "data": self.get_serializer(branch).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class BranchProfileDetailAPIView(generics.GenericAPIView):
+    serializer_class = BranchProfileSerializer
+    permission_classes = [IsAuthenticated]
+    permission_resource = "branch_profiles"
+
+    def dispatch(self, request, *args, **kwargs):
+        guard = _tenant_only_guard()
+        if guard is not None:
+            return guard
+        return super().dispatch(request, *args, **kwargs)
+
+    def _is_tenant_admin(self, request):
+        return bool(request.user.is_staff or request.user.is_superuser)
+
+    def _sync_manager_branch(self, branch):
+        if branch.manager_id and branch.manager.branch_profile_id != branch.id:
+            branch.manager.branch_profile = branch
+            branch.manager.save(update_fields=["branch_profile"])
+
+    def get_queryset(self):
+        return BranchProfile.objects.select_related(
+            "manager",
+            "created_by",
+        ).annotate(users_count=Count("users"))
+
+    def get_object(self, request, id):
+        queryset = self.get_queryset()
+        if not self._is_tenant_admin(request):
+            queryset = queryset.filter(id=getattr(request.user, "branch_profile_id", None))
+        return get_object_or_404(queryset, id=id)
+
+    def get(self, request, id):
+        branch = self.get_object(request, id)
+        return Response(
+            {
+                "status": True,
+                "message": "Branch profile fetched successfully.",
+                "data": self.get_serializer(branch).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, id):
+        return self._update(request, id, partial=True)
+
+    def patch(self, request, id):
+        return self._update(request, id, partial=True)
+
+    def _update(self, request, id, partial):
+        if not self._is_tenant_admin(request):
+            return Response(
+                {
+                    "status": False,
+                    "message": "Only tenant admin can update branch profiles.",
+                    "data": {},
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        branch = self.get_object(request, id)
+        serializer = self.get_serializer(branch, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        branch = serializer.save()
+        self._sync_manager_branch(branch)
+        return Response(
+            {
+                "status": True,
+                "message": "Branch profile updated successfully.",
+                "data": self.get_serializer(branch).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, id):
+        if not self._is_tenant_admin(request):
+            return Response(
+                {
+                    "status": False,
+                    "message": "Only tenant admin can delete branch profiles.",
+                    "data": {},
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        branch = self.get_object(request, id)
+        if branch.is_main:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Main branch cannot be deleted.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if branch.users.exists():
+            return Response(
+                {
+                    "status": False,
+                    "message": "Cannot delete branch while users are assigned to it.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        branch.delete()
+        return Response(
+            {"status": True, "message": "Branch profile deleted successfully.", "data": {}},
+            status=status.HTTP_200_OK,
+        )
+
+
+class BranchProfileUsersAPIView(generics.GenericAPIView):
+    serializer_class = UserCreateSerializer
+    permission_classes = [IsAuthenticated]
+    permission_resource = "branch_profiles"
+
+    def dispatch(self, request, *args, **kwargs):
+        guard = _tenant_only_guard()
+        if guard is not None:
+            return guard
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_branch(self, request, id):
+        queryset = BranchProfile.objects.all()
+        if not (request.user.is_staff or request.user.is_superuser):
+            queryset = queryset.filter(id=getattr(request.user, "branch_profile_id", None))
+        return get_object_or_404(queryset, id=id)
+
+    def get(self, request, id):
+        branch = self.get_branch(request, id)
+        users = UserModel.objects.filter(branch_profile=branch).order_by("username")
+        serializer = self.get_serializer(users, many=True)
+        return Response(
+            {
+                "status": True,
+                "message": "Branch users fetched successfully.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class UserBranchAssignmentAPIView(generics.GenericAPIView):
+    serializer_class = UserBranchAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+    permission_resource = "branch_profiles"
+
+    def dispatch(self, request, *args, **kwargs):
+        guard = _tenant_only_guard()
+        if guard is not None:
+            return guard
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_user(self, request, id):
+        if not (request.user.is_staff or request.user.is_superuser):
+            raise PermissionDenied("Only tenant admin can assign users to branches.")
+        return get_object_or_404(
+            UserModel.objects.select_related("branch_profile"),
+            id=id,
+        )
+
+    def get(self, request, id):
+        user = self.get_user(request, id)
+        return Response(
+            {
+                "status": True,
+                "message": "User branch fetched successfully.",
+                "data": {
+                    "user_id": str(user.id),
+                    "username": user.username,
+                    "branch_profile": BranchProfileSummarySerializer(
+                        user.branch_profile
+                    ).data
+                    if user.branch_profile
+                    else None,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, id):
+        return self._update(request, id)
+
+    def patch(self, request, id):
+        return self._update(request, id)
+
+    def _update(self, request, id):
+        user = self.get_user(request, id)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user.branch_profile = serializer.validated_data["branch_profile_id"]
+        user.save(update_fields=["branch_profile"])
+        return Response(
+            {
+                "status": True,
+                "message": "User branch updated successfully.",
+                "data": {
+                    "user_id": str(user.id),
+                    "username": user.username,
+                    "branch_profile": BranchProfileSummarySerializer(
+                        user.branch_profile
+                    ).data
+                    if user.branch_profile
+                    else None,
+                },
+            },
             status=status.HTTP_200_OK,
         )
 

@@ -74,13 +74,25 @@ class PaymentViewSet(generics.GenericAPIView):
                 # Update the existing payment
                 existing_payment.total_amount = total_amount
                 existing_payment.total_extra_amount = total_extra_amount
-                
+
                 # Advance is total paid
                 existing_payment.advance_amount += tx_amount
-                
-                # Recalculate pending
+
+                # Settlement on POST: incremental, mirrors PUT semantics so a
+                # repeat call with settlement_amount adds to the running total.
+                incoming_settlement = data.get("settlement_amount")
+                if incoming_settlement not in (None, ""):
+                    existing_payment.settlement_amount = (
+                        (existing_payment.settlement_amount or Decimal("0"))
+                        + Decimal(str(incoming_settlement))
+                    )
+
+                # Recalculate pending. Settlement counts toward closing the bill.
+                settlement_total = existing_payment.settlement_amount or Decimal("0")
                 existing_payment.pending_amount = (
-                    existing_payment.total_amount - existing_payment.advance_amount
+                    existing_payment.total_amount
+                    - existing_payment.advance_amount
+                    - settlement_total
                 )
                 if existing_payment.pending_amount < 0:
                     existing_payment.pending_amount = 0
@@ -185,22 +197,33 @@ class EditPaymentViewSet(generics.GenericAPIView):
         try:
             payment = Payment.objects.get(pk=pk)
             transaction_amount = request.data.get("transaction_amount")
+            settlement_amount = request.data.get("settlement_amount")
             payment_mode = request.data.get("payment_mode", "OTHER")
             payment_date = request.data.get("payment_date", str(date.today()))
             note = request.data.get("note", "")
 
-            if transaction_amount:
-                tx_amount = Decimal(str(transaction_amount))
+            # Both transaction and settlement amounts in this request reduce
+            # the bill's pending — transaction_amount is cash-style payment
+            # (added to cumulative advance), settlement_amount is a write-off
+            # (added to cumulative settlement). Both fields on the model are
+            # cumulative so we += each new value rather than overwrite.
+            tx_amount = Decimal(str(transaction_amount)) if transaction_amount else Decimal("0")
+            new_settlement = payment.settlement_amount or Decimal("0")
+            if settlement_amount not in (None, ""):
+                new_settlement = new_settlement + Decimal(str(settlement_amount))
+
+            if tx_amount > 0 or settlement_amount not in (None, ""):
                 new_advance = payment.advance_amount + tx_amount
-                new_pending = payment.total_amount - new_advance
-                
+                new_pending = payment.total_amount - new_advance - new_settlement
+
                 if new_pending < 0:
                     new_pending = Decimal("0")
 
                 request.data["advance_amount"] = str(new_advance)
+                request.data["settlement_amount"] = str(new_settlement)
                 request.data["pending_amount"] = str(new_pending)
 
-                # Determine transaction type
+                # Determine transaction-history entry type for this hit.
                 if new_pending <= 0:
                     tx_type = "FINAL"
                 elif payment.transactions.exists():
@@ -214,15 +237,17 @@ class EditPaymentViewSet(generics.GenericAPIView):
             if serializer.is_valid(raise_exception=True):
                 updated_payment = serializer.save()
 
-                # Auto-update payment_status based on pending
-                pending = updated_payment.total_amount - updated_payment.advance_amount
+                # Auto-update payment_status based on pending. Settlement is
+                # part of the equation now — pending = total − advance − settlement.
+                settlement = updated_payment.settlement_amount or Decimal("0")
+                pending = updated_payment.total_amount - updated_payment.advance_amount - settlement
                 if pending < 0:
                     pending = Decimal("0")
                 updated_payment.pending_amount = pending
-                
+
                 if pending <= 0:
                     updated_payment.payment_status = "PAID"
-                elif updated_payment.advance_amount > 0:
+                elif updated_payment.advance_amount > 0 or settlement > 0:
                     updated_payment.payment_status = "PARTIAL"
                 else:
                     updated_payment.payment_status = "UNPAID"

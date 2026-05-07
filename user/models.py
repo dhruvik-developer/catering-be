@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.db import connection
+from django.utils.text import slugify
 from rest_framework_simplejwt.tokens import RefreshToken
 import uuid
 
@@ -48,6 +49,13 @@ class UserModel(AbstractUser):
     id = models.UUIDField(
         primary_key=True, default=uuid.uuid4, editable=False, unique=True
     )
+    branch_profile = models.ForeignKey(
+        "BranchProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="users",
+    )
 
     @property
     def tokens(self):
@@ -61,6 +69,86 @@ class UserModel(AbstractUser):
     class Meta:
         db_table = "user"
 
+
+class BranchProfile(models.Model):
+    name = models.CharField("Branch Name", max_length=150)
+    branch_code = models.SlugField("Branch Code", max_length=60, unique=True, blank=True)
+    city = models.CharField("City", max_length=100, blank=True)
+    state = models.CharField("State", max_length=100, blank=True)
+    address = models.TextField("Address", blank=True)
+    phone_number = models.CharField("Phone Number", max_length=20, blank=True)
+    email = models.EmailField("Email", blank=True)
+    manager = models.ForeignKey(
+        "UserModel",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="managed_branches",
+    )
+    is_main = models.BooleanField("Main Branch", default=False)
+    is_active = models.BooleanField("Is Active", default=True)
+    created_by = models.ForeignKey(
+        "UserModel",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="created_branches",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "BranchProfile"
+        verbose_name = "Branch Profile"
+        verbose_name_plural = "Branch Profiles"
+        ordering = ("-is_main", "city", "name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("name", "city"),
+                name="unique_branch_profile_name_city",
+            )
+        ]
+
+    def __str__(self):
+        location = f" - {self.city}" if self.city else ""
+        return f"{self.name}{location}"
+
+    def _generate_branch_code(self):
+        base = slugify(self.branch_code or self.name or self.city or "branch")[:45]
+        if not base:
+            base = "branch"
+
+        candidate = base
+        suffix = 2
+        queryset = type(self).objects.all()
+        if self.pk:
+            queryset = queryset.exclude(pk=self.pk)
+
+        while queryset.filter(branch_code=candidate).exists():
+            candidate = f"{base[:45 - len(str(suffix)) - 1]}-{suffix}"
+            suffix += 1
+
+        return candidate
+
+    def save(self, *args, **kwargs):
+        self.name = (self.name or "").strip()
+        self.branch_code = (self.branch_code or "").strip().lower()
+        self.city = (self.city or "").strip()
+        self.state = (self.state or "").strip()
+        self.address = (self.address or "").strip()
+        self.phone_number = (self.phone_number or "").strip()
+        self.email = (self.email or "").strip()
+
+        if not self.branch_code:
+            self.branch_code = self._generate_branch_code()
+
+        if not self.pk and not type(self).objects.exists():
+            self.is_main = True
+
+        super().save(*args, **kwargs)
+
+        if self.is_main:
+            type(self).objects.exclude(pk=self.pk).update(is_main=False)
 
 
 class Note(models.Model):

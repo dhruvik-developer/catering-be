@@ -20,7 +20,8 @@ from tenancy.services import (
 from user.tenanting import normalize_schema_name, provision_tenant_schema
 
 from tenancy.models import Client, SubscriptionPlan
-from .models import BusinessProfile, Note, UserModel
+from .branching import ensure_main_branch_profile
+from .models import BranchProfile, BusinessProfile, Note, UserModel
 
 
 def seed_tenant_business_profile(tenant):
@@ -40,11 +41,14 @@ def seed_tenant_business_profile(tenant):
         if getattr(connection, "schema_name", "public") != tenant.schema_name:
             return None
         if BusinessProfile.objects.exists():
+            ensure_main_branch_profile(tenant=tenant)
             return None
-        return BusinessProfile.objects.create(
+        profile = BusinessProfile.objects.create(
             caters_name=caters_name[:255],
             phone_number=phone_number[:20],
         )
+        ensure_main_branch_profile(tenant=tenant)
+        return profile
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -328,6 +332,14 @@ class TenantSerializer(serializers.ModelSerializer):
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     tenant = serializers.SerializerMethodField()
+    branch_profile = serializers.SerializerMethodField()
+    branch_profile_id = serializers.PrimaryKeyRelatedField(
+        queryset=BranchProfile.objects.filter(is_active=True),
+        source="branch_profile",
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
     tenant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     is_staff = serializers.BooleanField(required=False, default=False)
     module_codes = serializers.ListField(
@@ -353,13 +365,21 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "last_name",
             "password",
             "tenant",
+            "branch_profile",
+            "branch_profile_id",
             "tenant_id",
             "is_staff",
             "is_active",
             "module_codes",
             "allowed_permissions",
         ]
-        read_only_fields = ["id", "tenant"]
+        read_only_fields = ["id", "tenant", "branch_profile"]
+
+    def get_branch_profile(self, obj):
+        branch = getattr(obj, "branch_profile", None)
+        if branch is None:
+            return None
+        return BranchProfileSummarySerializer(branch).data
 
     def _resolve_tenant(self, attrs):
         request = self.context.get("request")
@@ -479,6 +499,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         tenant = self._resolve_tenant(attrs)
+        if tenant is None and attrs.get("branch_profile") is not None:
+            raise serializers.ValidationError(
+                {"branch_profile_id": "Branches are available only inside tenant schemas."}
+            )
         self._validate_plan_user_limit(tenant)
         self._validate_requested_modules(
             tenant=tenant,
@@ -490,6 +514,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         tenant = validated_data.pop("_tenant", None)
+        branch_profile = validated_data.pop("branch_profile", None)
         module_codes = set(validated_data.pop("module_codes", []))
         allowed_permissions = set(validated_data.pop("allowed_permissions", []))
         validated_data.pop("tenant_id", None)
@@ -500,6 +525,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "password": validated_data["password"],
             "first_name": validated_data.get("first_name", ""),
             "last_name": validated_data.get("last_name", ""),
+            "branch_profile": branch_profile,
             "is_staff": validated_data.get("is_staff", False),
             "is_active": validated_data.get("is_active", True),
         }
@@ -550,6 +576,89 @@ class UserCreateSerializer(serializers.ModelSerializer):
             last_name=attrs.get("last_name", ""),
         )
         return run_password_validators(value, user_instance=ghost)
+
+
+class BranchProfileSummarySerializer(serializers.ModelSerializer):
+    manager_username = serializers.CharField(source="manager.username", read_only=True)
+
+    class Meta:
+        model = BranchProfile
+        fields = [
+            "id",
+            "name",
+            "branch_code",
+            "city",
+            "state",
+            "address",
+            "phone_number",
+            "email",
+            "manager",
+            "manager_username",
+            "is_main",
+            "is_active",
+        ]
+        read_only_fields = fields
+
+
+class BranchProfileSerializer(serializers.ModelSerializer):
+    manager_username = serializers.CharField(source="manager.username", read_only=True)
+    created_by_username = serializers.CharField(
+        source="created_by.username",
+        read_only=True,
+    )
+    users_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BranchProfile
+        fields = [
+            "id",
+            "name",
+            "branch_code",
+            "city",
+            "state",
+            "address",
+            "phone_number",
+            "email",
+            "manager",
+            "manager_username",
+            "is_main",
+            "is_active",
+            "users_count",
+            "created_by",
+            "created_by_username",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "created_by",
+            "created_by_username",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate_manager(self, value):
+        if value is not None and not value.is_active:
+            raise serializers.ValidationError("Branch manager must be an active user.")
+        return value
+
+    def get_users_count(self, obj):
+        return getattr(obj, "users_count", None) or obj.users.count()
+
+
+class UserBranchAssignmentSerializer(serializers.Serializer):
+    branch_profile_id = serializers.PrimaryKeyRelatedField(
+        queryset=BranchProfile.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+
+    def validate(self, attrs):
+        if "branch_profile_id" not in attrs:
+            raise serializers.ValidationError(
+                {"branch_profile_id": "This field is required."}
+            )
+        return attrs
 
 
 class ChangePasswordSerializer(serializers.Serializer):

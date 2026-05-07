@@ -11,6 +11,7 @@ from radha.Utils.permissions import (
     get_tenant_enabled_module_codes,
     get_user_active_tenant,
 )
+from user.serializers import BranchProfileSummarySerializer
 
 
 UserModel = get_user_model()
@@ -57,6 +58,7 @@ class PermissionSubjectSerializer(serializers.ModelSerializer):
     staff_role = serializers.SerializerMethodField()
     tenant_id = serializers.SerializerMethodField()
     tenant_name = serializers.SerializerMethodField()
+    branch_profile = serializers.SerializerMethodField()
     effective_permissions = serializers.SerializerMethodField()
 
     class Meta:
@@ -70,6 +72,7 @@ class PermissionSubjectSerializer(serializers.ModelSerializer):
             "is_active",
             "tenant_id",
             "tenant_name",
+            "branch_profile",
             "user_type",
             "profile_name",
             "staff_role",
@@ -104,6 +107,12 @@ class PermissionSubjectSerializer(serializers.ModelSerializer):
     def get_tenant_name(self, obj):
         tenant = self._get_context_tenant(obj)
         return tenant.name if tenant else None
+
+    def get_branch_profile(self, obj):
+        branch = getattr(obj, "branch_profile", None)
+        if branch is None:
+            return None
+        return BranchProfileSummarySerializer(branch).data
 
     def get_effective_permissions(self, obj):
         return sorted(get_effective_permission_codes(obj))

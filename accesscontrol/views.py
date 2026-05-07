@@ -63,7 +63,11 @@ class PermissionSubjectListAPIView(generics.GenericAPIView):
 
     def get_queryset(self):
         queryset = (
-            UserModel.objects.select_related("staff_profile__role", "vendor_profile")
+            UserModel.objects.select_related(
+                "branch_profile",
+                "staff_profile__role",
+                "vendor_profile",
+            )
             .filter(is_superuser=False)
             .order_by("username")
         )
@@ -96,6 +100,7 @@ class UserPermissionAssignmentAPIView(generics.GenericAPIView):
 
     def get_user(self, user_id):
         queryset = UserModel.objects.select_related(
+            "branch_profile",
             "staff_profile__role",
             "vendor_profile",
         )
@@ -174,6 +179,10 @@ class MyPermissionAPIView(generics.GenericAPIView):
                     "username": request.user.username,
                     "tenant_id": str(tenant.id) if tenant else None,
                     "tenant_name": tenant.name if tenant else None,
+                    "branch_profile": PermissionSubjectSerializer(
+                        request.user,
+                        context={"tenant": tenant, "request": request},
+                    ).data.get("branch_profile"),
                     "permissions": sorted(get_effective_permission_codes(request.user)),
                 },
             },

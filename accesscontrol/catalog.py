@@ -42,6 +42,7 @@ EXPLICIT_MODEL_RESOURCE_OVERRIDES = {
     "eventstaff.FixedStaffSalaryPayment": "fixed_staff_payments",
     "Expense.Expense": "expense_entries",
     "Expense.Category": "expense_categories",
+    "user.BranchProfile": "branch_profiles",
     "user.UserModel": "users",
 }
 

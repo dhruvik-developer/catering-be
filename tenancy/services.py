@@ -111,7 +111,7 @@ def create_tenant_admin_user(tenant, admin_data):
         if UserModel.objects.filter(username=username).exists():
             raise ValueError("Username already exists in this tenant.")
 
-        return UserModel.objects.create_user(
+        user = UserModel.objects.create_user(
             username=username,
             email=admin_data.get("email", ""),
             password=admin_data["password"],
@@ -121,3 +121,7 @@ def create_tenant_admin_user(tenant, admin_data):
             is_staff=True,
             is_superuser=admin_data.get("is_superuser", False),
         )
+        from user.branching import ensure_main_branch_profile
+
+        ensure_main_branch_profile(tenant=tenant, admin_user=user)
+        return user

@@ -26,7 +26,7 @@ radha-be/
 |- radha/                   # Django project settings, root URLs, middleware, utils
 |- tenancy/                 # django-tenants client/domain/subscription management
 |- accesscontrol/           # Access-control modules and user permission assignments
-|- user/                    # Auth/login, users, notes, business profile
+|- user/                    # Auth/login, users, branch profiles, notes, business profile
 |- category/                # Menu categories
 |- item/                    # Menu items and recipe ingredient mapping
 |- ListOfIngridients/       # Ingredient categories/items (legacy spelling kept)
@@ -204,6 +204,9 @@ Content-Type: application/json
 ```
 
 This creates the PostgreSQL schema, stores the domain mapping, and creates the tenant admin inside the tenant schema.
+The first tenant admin is also attached to the tenant's main branch profile. If
+no branch exists yet, the backend creates a default main branch inside that
+tenant schema.
 
 Migration bridge note: existing legacy migrations contain cross-app dependencies that require public to retain some business tables during the transition. Runtime isolation still happens through tenant schemas. A later cleanup should squash/split those legacy migrations so public contains only platform tables.
 
@@ -232,6 +235,10 @@ All routes are under `/api/`.
 - `POST /login/`
 - `POST|GET /users/`
 - `DELETE /users/<uuid:id>/`
+- `GET|PUT|PATCH /users/<uuid:id>/branch/`
+- `GET|POST /branch-profiles/`
+- `GET|PUT|PATCH|DELETE /branch-profiles/<int:id>/`
+- `GET /branch-profiles/<int:id>/users/`
 - `POST /change-password/<uuid:id>/`
 - `POST|GET /add-note/` and `/get-note/`
 - `PUT /update-note/<int:pk>/`
