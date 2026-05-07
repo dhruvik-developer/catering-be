@@ -1,4 +1,3 @@
-import re
 from decimal import Decimal, InvalidOperation
 
 
@@ -74,16 +73,6 @@ def default_display_unit(stored_unit):
     if normalized == "ML":
         return "L"
     return normalized
-
-
-def parse_threshold_to_base(alert_text, fallback_unit=""):
-    match = re.search(r"([-+]?\d*\.?\d+)\s*([a-zA-Z]+)?", str(alert_text or "").strip())
-    if not match:
-        return Decimal("0")
-
-    value = to_decimal(match.group(1))
-    unit = normalize_unit(match.group(2) or fallback_unit)
-    return to_base_unit(value, unit)
 
 
 def to_number(value, digits=4):

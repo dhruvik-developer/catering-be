@@ -38,7 +38,6 @@ radha-be/
 |- payments/                # Payments and transactions
 |- Expense/                 # Expenses, expense categories, entities
 |- vendor/                  # Vendors and vendor categories
-|- branchmanagement/        # Present in repo, currently NOT wired in urls/settings
 |- media/                   # Uploaded media files
 |- manage.py
 |- requirements.txt
@@ -331,16 +330,6 @@ All routes are under `/api/`.
 - `GET|POST /ground/items/`
 - `GET|PUT|PATCH|DELETE /ground/items/<int:pk>/`
 
-### Branch Management (Currently Disabled)
-
-These routes exist in `branchmanagement/urls.py` but are currently commented out in `radha/urls.py` and `radha/settings.py`:
-
-- `/invoice-setup/`
-- `/party-information/`
-- `/global-config/`
-- `/branch-items/`
-- `/branch-bills/`
-
 ## Deployment Script
 
 `catering-be.sh` does:
@@ -404,5 +393,4 @@ APP_DIR=/root/catering-be scripts/update_subscription_statuses.sh --dry-run
 ## Important Notes
 
 - `CORS_ALLOW_ALL_ORIGINS` defaults to `True` in settings; tighten this in production.
-- `branchmanagement` is present but not active in installed apps and root URLs.
 - README no longer references a Postman collection file because `radha.postman_collection.json` is not present in this repository.

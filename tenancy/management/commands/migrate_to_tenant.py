@@ -1,7 +1,7 @@
-import os
 from django.core.management.base import BaseCommand
-from django.db import connection, transaction
+from django.db import connection
 from tenancy.models import Client, Domain
+
 
 class Command(BaseCommand):
     help = "Migrates all data from public schema to a default tenant schema."
@@ -36,12 +36,6 @@ class Command(BaseCommand):
         # django-tenants handles this when Client.save() is called or via migrate_schemas
         # but since we might already have data, we'll manually copy tables.
         
-        business_apps = [
-            "category", "eventbooking", "item", "ListOfIngridients", 
-            "payments", "pdfformatter", "stockmanagement", "Expense", 
-            "vendor", "eventstaff", "groundmanagement", "user"
-        ]
-
         with connection.cursor() as cursor:
             # Get all tables in public schema
             cursor.execute("""

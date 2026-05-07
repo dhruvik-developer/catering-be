@@ -6,7 +6,7 @@ from accesscontrol.services import sync_permission_catalog
 
 
 @receiver(post_migrate)
-def seed_access_permissions(sender, **kwargs):
+def seed_access_permissions(**kwargs):
     try:
         sync_permission_catalog()
     except (OperationalError, ProgrammingError):

@@ -1,8 +1,6 @@
 from django.conf import settings
 from django.db import models
-from django.core.validators import RegexValidator
 from django.utils import timezone
-from item.models import Item
 from vendor.models import Vendor
 from ListOfIngridients.models import IngridientsItem
 

@@ -138,7 +138,6 @@ TENANT_APPS = (
     "vendor",
     "eventstaff",
     "groundmanagement",
-    # "branchmanagement",
 )
 
 INSTALLED_APPS = list(SHARED_APPS) + [

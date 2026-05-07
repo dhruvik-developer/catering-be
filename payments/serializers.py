@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from decimal import Decimal
-from eventbooking.models import EventBooking
 from .models import *
 
 

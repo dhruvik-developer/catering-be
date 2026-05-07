@@ -4,7 +4,6 @@ from radha.Utils.permissions import *
 from radha.Utils.unit_normalizer import (
     default_display_unit,
     normalize_unit,
-    parse_threshold_to_base,
     to_base_unit,
     to_decimal,
     to_number,

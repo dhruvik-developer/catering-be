@@ -5,7 +5,7 @@ from tenancy.models import Client, SubscriptionPlan
 
 
 @receiver(m2m_changed, sender=SubscriptionPlan.included_modules.through)
-def resync_clients_on_plan_modules_change(sender, instance, action, **kwargs):
+def resync_clients_on_plan_modules_change(instance, action, **kwargs):
     if action not in {"post_add", "post_remove", "post_clear"}:
         return
     if not isinstance(instance, SubscriptionPlan):

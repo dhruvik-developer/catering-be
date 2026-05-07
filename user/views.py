@@ -736,14 +736,6 @@ class ChangePasswordAPIView(generics.GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
-        error_messages = []
-        for field, errors in serializer.errors.items():
-            error_messages.extend(errors)
-
-        return Response(
-            {"status": False, "message": error_messages[0]}, status=status.HTTP_400_BAD_REQUEST
-        )
-
 
 def _tenant_only_guard():
     if getattr(connection, "schema_name", "public") == "public":

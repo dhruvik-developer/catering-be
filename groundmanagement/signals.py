@@ -10,7 +10,7 @@ from .models import (
 
 
 @receiver(post_save, sender=EventSession)
-def auto_create_ground_requirements(sender, instance, created, **kwargs):
+def auto_create_ground_requirements(instance, created, **kwargs):
     if not created:
         return
 
