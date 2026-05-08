@@ -111,6 +111,7 @@ SHARED_APPS = (
     "django_filters",
     "accesscontrol",
     "user",
+    "leads",
 )
 
 TENANT_APPS = (
@@ -228,6 +229,7 @@ SAAS_SHARED_APPS = (
     "token_blacklist",
     "accesscontrol",
     "user",
+    "leads",
 )
 
 SAAS_TENANT_APPS = (

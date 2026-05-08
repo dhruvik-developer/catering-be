@@ -6,6 +6,7 @@ urlpatterns = [
     path("api/", include("tenancy.urls")),
     path("api/", include("accesscontrol.urls")),
     path("api/", include("user.urls")),
+    path("api/", include("leads.urls")),
 ]
 
 if settings.DEBUG:
