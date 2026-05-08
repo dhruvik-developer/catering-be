@@ -1,3 +1,9 @@
+from contextlib import nullcontext
+from urllib.parse import urlencode
+
+from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import send_mail
 from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -8,6 +14,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.auth import authenticate
 from django.db import connection
 from django.http import JsonResponse
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from .models import BranchProfile, UserModel, Note, BusinessProfile, SubscriptionPlan
 from django.db.models import Count
 from django_tenants.utils import schema_context, tenant_context
@@ -27,6 +35,9 @@ from .serializers import (
     TenantSummarySerializer,
     UserCreateSerializer,
     ChangePasswordSerializer,
+    TenantChangePasswordSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
     BusinessProfileSerializer,
     BusinessProfileLanguageSerializer,
 )
@@ -49,6 +60,155 @@ class IsPlatformAdmin(BasePermission):
             and request.user.is_superuser
             and is_public
         )
+
+
+PASSWORD_RESET_RESPONSE_MESSAGE = (
+    "If the account exists, password reset instructions have been sent."
+)
+
+
+def _first_error_from_dict(errors):
+    for value in errors.values():
+        if isinstance(value, dict):
+            nested_message = _first_error_from_dict(value)
+            if nested_message:
+                return nested_message
+        elif isinstance(value, (list, tuple)):
+            if value:
+                return value[0]
+        elif value:
+            return value
+    return None
+
+
+def _first_serializer_error(serializer, default="Invalid request."):
+    for errors in serializer.errors.values():
+        if isinstance(errors, dict):
+            nested_message = _first_error_from_dict(errors)
+            if nested_message:
+                return nested_message
+        elif isinstance(errors, (list, tuple)):
+            if errors:
+                return errors[0]
+        elif errors:
+            return errors
+    return default
+
+
+def _request_tenant(request):
+    tenant = getattr(request, "tenant", None)
+    if tenant is not None and getattr(tenant, "schema_name", "public") != "public":
+        return tenant
+    return None
+
+
+def _password_reset_tenant_queryset():
+    return Tenant.objects.select_related("subscription_plan").prefetch_related(
+        "enabled_modules"
+    )
+
+
+def _resolve_password_reset_tenant(request, data):
+    tenant = _request_tenant(request)
+    if tenant is not None:
+        return tenant
+
+    tenant_id = data.get("tenant_id")
+    domain = str(data.get("domain") or "").strip()
+    schema_name = str(data.get("schema_name") or "").strip()
+    identifier = str(data.get("tenant") or "").strip()
+
+    if not any([tenant_id, domain, schema_name, identifier]):
+        return None
+
+    with schema_context("public"):
+        if tenant_id:
+            return _password_reset_tenant_queryset().get(id=tenant_id)
+        if domain:
+            tenant_domain = Domain.objects.select_related("tenant").get(
+                domain=normalize_domain(domain)
+            )
+            return tenant_domain.tenant
+        if schema_name:
+            return _password_reset_tenant_queryset().get(
+                schema_name=normalize_schema_name(schema_name)
+            )
+        if "." in identifier or ":" in identifier or "/" in identifier:
+            tenant_domain = Domain.objects.select_related("tenant").get(
+                domain=normalize_domain(identifier)
+            )
+            return tenant_domain.tenant
+        return _password_reset_tenant_queryset().get(
+            schema_name=normalize_schema_name(identifier)
+        )
+
+
+def _user_schema_context(tenant):
+    if tenant is None:
+        return nullcontext()
+    return tenant_context(tenant)
+
+
+def _password_reset_user_queryset(data):
+    queryset = UserModel._default_manager.filter(is_active=True)
+    username = str(data.get("username") or "").strip()
+    email = str(data.get("email") or "").strip()
+    identifier = str(data.get("identifier") or "").strip()
+
+    if username:
+        queryset = queryset.filter(username__iexact=username)
+    if email:
+        queryset = queryset.filter(email__iexact=email)
+    if identifier:
+        if "@" in identifier:
+            queryset = queryset.filter(email__iexact=identifier)
+        else:
+            queryset = queryset.filter(username__iexact=identifier)
+
+    return [user for user in queryset if user.has_usable_password()]
+
+
+def _build_password_reset_url(tenant, uid, token):
+    base_url = str(getattr(settings, "PASSWORD_RESET_FRONTEND_URL", "") or "").strip()
+    if not base_url:
+        return ""
+
+    query = {"uid": uid, "token": token}
+    if tenant is not None:
+        query["tenant"] = tenant.schema_name
+    separator = "&" if "?" in base_url else "?"
+    return f"{base_url}{separator}{urlencode(query)}"
+
+
+def _send_password_reset_email(user, tenant, uid, token):
+    if not user.email:
+        return
+
+    reset_url = _build_password_reset_url(tenant, uid, token)
+    tenant_label = f"\nTenant: {tenant.schema_name}" if tenant is not None else ""
+    reset_details = reset_url or f"UID: {uid}\nToken: {token}"
+    message = (
+        f"Hello {user.get_username()},\n\n"
+        "We received a request to reset your password."
+        f"{tenant_label}\n\n"
+        f"Use the link or reset details below to set a new password:\n{reset_details}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+    send_mail(
+        subject="Reset your password",
+        message=message,
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        recipient_list=[user.email],
+        fail_silently=True,
+    )
+
+
+def _decode_password_reset_uid(uid):
+    try:
+        return force_str(urlsafe_base64_decode(uid))
+    except (TypeError, ValueError, OverflowError, UnicodeDecodeError):
+        return None
+
 
 # --------------------    LoginViewSet    --------------------
 
@@ -982,6 +1142,175 @@ class MyTenantAPIView(generics.GenericAPIView):
         )
 
 
+class TenantChangePasswordAPIView(generics.GenericAPIView):
+    serializer_class = TenantChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "status": False,
+                    "message": _first_serializer_error(serializer, "Invalid password."),
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save(update_fields=["password"])
+        return Response(
+            {
+                "status": True,
+                "message": "Password changed successfully.",
+                "data": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetRequestAPIView(generics.GenericAPIView):
+    serializer_class = PasswordResetRequestSerializer
+    permission_classes = [AllowAny]
+    throttle_scope = "password_reset"
+
+    def _generic_response(self):
+        return Response(
+            {
+                "status": True,
+                "message": PASSWORD_RESET_RESPONSE_MESSAGE,
+                "data": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "status": False,
+                    "message": _first_serializer_error(serializer),
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            tenant = _resolve_password_reset_tenant(request, serializer.validated_data)
+        except (Tenant.DoesNotExist, Domain.DoesNotExist, ValueError):
+            return self._generic_response()
+
+        debug_tokens = []
+        with _user_schema_context(tenant):
+            for user in _password_reset_user_queryset(serializer.validated_data):
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                token = default_token_generator.make_token(user)
+                _send_password_reset_email(user, tenant, uid, token)
+                if getattr(settings, "PASSWORD_RESET_RETURN_TOKEN", False):
+                    debug_tokens.append(
+                        {
+                            "uid": uid,
+                            "token": token,
+                            "tenant": tenant.schema_name if tenant is not None else None,
+                        }
+                    )
+
+        data = {}
+        if debug_tokens:
+            data["reset_tokens"] = debug_tokens
+            if len(debug_tokens) == 1:
+                data.update(debug_tokens[0])
+
+        return Response(
+            {
+                "status": True,
+                "message": PASSWORD_RESET_RESPONSE_MESSAGE,
+                "data": data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmAPIView(generics.GenericAPIView):
+    serializer_class = PasswordResetConfirmSerializer
+    permission_classes = [AllowAny]
+    throttle_scope = "password_reset"
+
+    def _invalid_link_response(self):
+        return Response(
+            {
+                "status": False,
+                "message": "Invalid or expired password reset token.",
+                "data": {},
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "status": False,
+                    "message": _first_serializer_error(serializer),
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            tenant = _resolve_password_reset_tenant(request, serializer.validated_data)
+        except (Tenant.DoesNotExist, Domain.DoesNotExist, ValueError):
+            return self._invalid_link_response()
+
+        user_id = _decode_password_reset_uid(serializer.validated_data["uid"])
+        if user_id is None:
+            return self._invalid_link_response()
+
+        with _user_schema_context(tenant):
+            try:
+                user = UserModel._default_manager.get(pk=user_id, is_active=True)
+            except UserModel.DoesNotExist:
+                return self._invalid_link_response()
+
+            if not default_token_generator.check_token(
+                user,
+                serializer.validated_data["token"],
+            ):
+                return self._invalid_link_response()
+
+            password_serializer = ChangePasswordSerializer(
+                data={"new_password": serializer.validated_data["new_password"]},
+                context={**self.get_serializer_context(), "target_user": user},
+            )
+            if not password_serializer.is_valid():
+                return Response(
+                    {
+                        "status": False,
+                        "message": _first_serializer_error(
+                            password_serializer,
+                            "Invalid password.",
+                        ),
+                        "data": {},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user.set_password(password_serializer.validated_data["new_password"])
+            user.save(update_fields=["password"])
+
+        return Response(
+            {
+                "status": True,
+                "message": "Password reset successfully.",
+                "data": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class ChangePasswordAPIView(generics.GenericAPIView):
     serializer_class = ChangePasswordSerializer
     permission_classes = [IsAuthenticated]
@@ -1027,6 +1356,17 @@ class ChangePasswordAPIView(generics.GenericAPIView):
             return Response(
                 {"status": False, "message": "You do not have permission to change this password."},
                 status=status.HTTP_403_FORBIDDEN,
+            )
+        if is_self and not request.user.check_password(
+            request.data.get("current_password", "")
+        ):
+            return Response(
+                {
+                    "status": False,
+                    "message": "Current password is incorrect.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
         serializer = self.get_serializer(
             data=request.data,

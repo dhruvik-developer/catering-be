@@ -7,6 +7,9 @@ For the current end-to-end project flow, module responsibilities, active API
 routes, admin coverage, and inactive module notes, see
 [`CURRENT_FLOW.md`](CURRENT_FLOW.md).
 
+For frontend implementation details for change-password and forgot-password
+flows, see [`docs/password-apis.md`](docs/password-apis.md).
+
 ## Tech Stack
 
 - Python
@@ -239,7 +242,10 @@ All routes are under `/api/`.
 - `GET|POST /branch-profiles/`
 - `GET|PUT|PATCH|DELETE /branch-profiles/<int:id>/`
 - `GET /branch-profiles/<int:id>/users/`
-- `POST /change-password/<uuid:id>/`
+- `POST /change-password/` authenticated user changes own password with `current_password` and `new_password`
+- `POST /change-password/<uuid:id>/` admin/manager password update for a target user; requires `current_password` when targeting yourself
+- `POST /forgot-password/` request a reset token by `username`, `email`, or `identifier`
+- `POST /reset-password/` set a new password with `uid`, `token`, and `new_password`
 - `POST|GET /add-note/` and `/get-note/`
 - `PUT /update-note/<int:pk>/`
 - `GET|POST /business-profiles/`

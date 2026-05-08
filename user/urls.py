@@ -14,7 +14,10 @@ urlpatterns = [
     path("users/", UserCreateAPIView.as_view()),
     path("users/<uuid:id>/", UserCreateAPIView.as_view()),
     path("users/<uuid:id>/branch/", UserBranchAssignmentAPIView.as_view()),
+    path("change-password/", TenantChangePasswordAPIView.as_view()),
     path("change-password/<uuid:id>/", ChangePasswordAPIView.as_view()),
+    path("forgot-password/", PasswordResetRequestAPIView.as_view()),
+    path("reset-password/", PasswordResetConfirmAPIView.as_view()),
     path("update-note/<int:pk>/", NoteViewSet.as_view()),
     path(
         "branch-profiles/",

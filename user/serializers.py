@@ -711,6 +711,82 @@ class ChangePasswordSerializer(serializers.Serializer):
         return run_password_validators(value, user_instance=self.context.get("target_user"))
 
 
+class TenantChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True)
+
+    def validate_current_password(self, value):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            raise serializers.ValidationError("Authentication required.")
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate_new_password(self, value):
+        request = self.context.get("request")
+        return run_password_validators(
+            value,
+            user_instance=getattr(request, "user", None),
+        )
+
+    def validate(self, attrs):
+        if attrs.get("current_password") == attrs.get("new_password"):
+            raise serializers.ValidationError(
+                {"new_password": "New password must be different from current password."}
+            )
+        return attrs
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    identifier = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    username = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    email = serializers.EmailField(required=False, allow_blank=True, write_only=True)
+    tenant = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    tenant_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    schema_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    domain = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate(self, attrs):
+        identifier = str(attrs.get("identifier") or "").strip()
+        username = str(attrs.get("username") or "").strip()
+        email = str(attrs.get("email") or "").strip()
+        if not identifier and not username and not email:
+            raise serializers.ValidationError(
+                {"identifier": "Username or email is required."}
+            )
+        attrs["identifier"] = identifier
+        attrs["username"] = username
+        attrs["email"] = email
+        return attrs
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField(required=True, write_only=True)
+    token = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    confirm_password = serializers.CharField(
+        required=False,
+        write_only=True,
+    )
+    tenant = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    tenant_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    schema_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    domain = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate(self, attrs):
+        confirm_password = attrs.get("confirm_password")
+        if (
+            confirm_password is not None
+            and confirm_password != attrs.get("new_password")
+        ):
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+        return attrs
+
+
 class BusinessProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessProfile

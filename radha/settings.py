@@ -330,9 +330,26 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "login": get_env("LOGIN_THROTTLE_RATE", "10/minute"),
         "token_refresh": get_env("TOKEN_REFRESH_THROTTLE_RATE", "30/minute"),
+        "password_reset": get_env("PASSWORD_RESET_THROTTLE_RATE", "5/minute"),
     },
     "EXCEPTION_HANDLER": "radha.Utils.custom_exception.custom_exception_handler",
 }
+
+DEFAULT_FROM_EMAIL = get_env("DEFAULT_FROM_EMAIL", "no-reply@localhost")
+EMAIL_BACKEND = get_env(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = get_env("EMAIL_HOST", "localhost")
+EMAIL_PORT = env_int("EMAIL_PORT", 25)
+EMAIL_HOST_USER = get_env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = get_env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+PASSWORD_RESET_FRONTEND_URL = get_env("PASSWORD_RESET_FRONTEND_URL", "")
+PASSWORD_RESET_RETURN_TOKEN = env_bool("PASSWORD_RESET_RETURN_TOKEN", DEBUG)
 
 JWT_SIGNING_KEY = get_env("JWT_SIGNING_KEY") or SECRET_KEY
 if not DEBUG and len(JWT_SIGNING_KEY) < 32:
