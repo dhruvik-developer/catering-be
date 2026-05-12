@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django_tenants.utils import schema_context
 
+from tenancy.db_sequences import reset_schema_sequences
 from tenancy.models import Client
 from tenancy.utils import normalize_schema_name
 
@@ -69,10 +70,16 @@ class Command(BaseCommand):
                         ON CONFLICT DO NOTHING
                         """
                     )
+                reset_sequences = reset_schema_sequences(
+                    cursor,
+                    schema_name,
+                    table_names,
+                )
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Copied public data into tenant schema '{schema_name}'."
+                f"Copied public data into tenant schema '{schema_name}' "
+                f"and reset {len(reset_sequences)} sequence(s)."
             )
         )
 

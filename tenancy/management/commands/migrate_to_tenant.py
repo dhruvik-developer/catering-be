@@ -1,6 +1,9 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
+
+from tenancy.db_sequences import reset_schema_sequences
 from tenancy.models import Client, Domain
+from tenancy.utils import normalize_domain, normalize_schema_name
 
 
 class Command(BaseCommand):
@@ -12,9 +15,12 @@ class Command(BaseCommand):
         parser.add_argument("--domain", type=str, default="client1.localhost")
 
     def handle(self, *args, **options):
+        if connection.vendor != "postgresql":
+            raise CommandError("Tenant migration requires PostgreSQL.")
+
         tenant_name = options["tenant_name"]
-        schema_name = options["schema_name"]
-        domain_name = options["domain"]
+        schema_name = normalize_schema_name(options["schema_name"])
+        domain_name = normalize_domain(options["domain"])
 
         self.stdout.write(f"Migrating data to tenant: {tenant_name} ({schema_name})")
 
@@ -47,15 +53,37 @@ class Command(BaseCommand):
                 AND table_name NOT LIKE 'django_%'
             """)
             tables = [row[0] for row in cursor.fetchall()]
+            copied_tables = []
+            quoted_schema = connection.ops.quote_name(schema_name)
 
             for table in tables:
                 self.stdout.write(f"Copying table {table} to {schema_name}...")
                 try:
+                    quoted_table = connection.ops.quote_name(table)
                     # Clear existing data in tenant table if any (optional)
-                    cursor.execute(f'TRUNCATE TABLE "{schema_name}"."{table}" CASCADE')
+                    cursor.execute(
+                        f"TRUNCATE TABLE {quoted_schema}.{quoted_table} CASCADE"
+                    )
                     # Copy data
-                    cursor.execute(f'INSERT INTO "{schema_name}"."{table}" SELECT * FROM "public"."{table}"')
+                    cursor.execute(
+                        f"""
+                        INSERT INTO {quoted_schema}.{quoted_table}
+                        SELECT * FROM public.{quoted_table}
+                        """
+                    )
+                    copied_tables.append(table)
                 except Exception as e:
                     self.stdout.write(self.style.ERROR(f"Failed to copy {table}: {e}"))
 
-        self.stdout.write(self.style.SUCCESS("Migration completed successfully."))
+            reset_sequences = reset_schema_sequences(
+                cursor,
+                schema_name,
+                copied_tables,
+            )
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                "Migration completed successfully. "
+                f"Reset {len(reset_sequences)} sequence(s)."
+            )
+        )
