@@ -123,8 +123,7 @@ class TenantAdminCreateSerializer(serializers.Serializer):
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
 
-    def validate_password(self, value):
-        attrs = self.initial_data or {}
+    def validate(self, attrs):
         UserModel = get_user_model()
         ghost = UserModel(
             username=attrs.get("username", ""),
@@ -132,7 +131,14 @@ class TenantAdminCreateSerializer(serializers.Serializer):
             first_name=attrs.get("first_name", ""),
             last_name=attrs.get("last_name", ""),
         )
-        return run_password_validators(value, user_instance=ghost)
+        try:
+            attrs["password"] = run_password_validators(
+                attrs.get("password"),
+                user_instance=ghost,
+            )
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({"password": exc.detail}) from exc
+        return attrs
 
 
 class ClientSerializer(serializers.ModelSerializer):
