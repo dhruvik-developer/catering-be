@@ -1,5 +1,7 @@
 from contextlib import nullcontext
-from urllib.parse import urlencode
+import logging
+import smtplib
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
@@ -48,6 +50,9 @@ from radha.Utils.permissions import (
     user_has_permission,
 )
 from user.tenanting import provision_tenant_schema
+
+
+logger = logging.getLogger(__name__)
 
 
 class IsPlatformAdmin(BasePermission):
@@ -168,21 +173,50 @@ def _password_reset_user_queryset(data):
     return [user for user in queryset if user.has_usable_password()]
 
 
+def _get_tenant_reset_domain(tenant):
+    if tenant is None:
+        return ""
+
+    domain_value = getattr(tenant, "domain_url", "") or ""
+    if not domain_value and hasattr(tenant, "get_primary_domain"):
+        with schema_context("public"):
+            domain = tenant.get_primary_domain()
+        domain_value = domain.domain if domain else ""
+
+    return normalize_domain(domain_value)
+
+
 def _build_password_reset_url(tenant, uid, token):
     base_url = str(getattr(settings, "PASSWORD_RESET_FRONTEND_URL", "") or "").strip()
+    tenant_domain = _get_tenant_reset_domain(tenant)
+    parsed_base = urlsplit(base_url)
+    query = dict(parse_qsl(parsed_base.query, keep_blank_values=True))
+    query.update({"uid": uid, "token": token})
+    if tenant is not None:
+        query["tenant"] = tenant.schema_name
+
+    if tenant_domain:
+        scheme = parsed_base.scheme or "https"
+        path = parsed_base.path or "/reset-password"
+        return urlunsplit((scheme, tenant_domain, path, urlencode(query), ""))
+
     if not base_url:
         return ""
 
-    query = {"uid": uid, "token": token}
-    if tenant is not None:
-        query["tenant"] = tenant.schema_name
-    separator = "&" if "?" in base_url else "?"
-    return f"{base_url}{separator}{urlencode(query)}"
+    return urlunsplit(
+        (
+            parsed_base.scheme,
+            parsed_base.netloc,
+            parsed_base.path or "/reset-password",
+            urlencode(query),
+            "",
+        )
+    )
 
 
 def _send_password_reset_email(user, tenant, uid, token):
     if not user.email:
-        return
+        return False
 
     reset_url = _build_password_reset_url(tenant, uid, token)
     tenant_label = f"\nTenant: {tenant.schema_name}" if tenant is not None else ""
@@ -194,13 +228,21 @@ def _send_password_reset_email(user, tenant, uid, token):
         f"Use the link or reset details below to set a new password:\n{reset_details}\n\n"
         "If you did not request this, you can ignore this email."
     )
-    send_mail(
-        subject="Reset your password",
-        message=message,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=[user.email],
-        fail_silently=True,
-    )
+    try:
+        send_mail(
+            subject="Reset your password",
+            message=message,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+    except (OSError, smtplib.SMTPException):
+        logger.exception(
+            "Failed to send password reset email to user '%s'.",
+            user.get_username(),
+        )
+        return False
+    return True
 
 
 def _decode_password_reset_uid(uid):
