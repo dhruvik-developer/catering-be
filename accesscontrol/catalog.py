@@ -1,5 +1,6 @@
 import ast
 from collections import defaultdict
+from functools import lru_cache
 import inspect
 from importlib import import_module
 import re
@@ -247,6 +248,7 @@ def _action_sort_key(action):
     return (len(STANDARD_ACTION_ORDER), action)
 
 
+@lru_cache(maxsize=1)
 def build_permission_catalog():
     catalog_dict = {}
     model_seeded_resources = set()

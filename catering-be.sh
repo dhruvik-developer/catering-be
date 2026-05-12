@@ -4,6 +4,8 @@ set -e
 APP_DIR="${APP_DIR:-/root/catering-be}"
 VENV_PATH="${VENV_PATH:-.venv/bin/activate}"
 GUNICORN_BIND="${GUNICORN_BIND:-127.0.0.1:8009}"
+GUNICORN_TIMEOUT="${GUNICORN_TIMEOUT:-800}"
+GUNICORN_GRACEFUL_TIMEOUT="${GUNICORN_GRACEFUL_TIMEOUT:-80}"
 AUTO_INSTALL_SUBSCRIPTION_CRON="${AUTO_INSTALL_SUBSCRIPTION_CRON:-true}"
 
 cd "$APP_DIR"
@@ -43,4 +45,7 @@ python manage.py repair_token_blacklist_tables
 
 # Start Gunicorn
 echo "Starting Gunicorn..."
-exec gunicorn radha.wsgi:application --bind "$GUNICORN_BIND"
+exec gunicorn radha.wsgi:application \
+  --bind "$GUNICORN_BIND" \
+  --timeout "$GUNICORN_TIMEOUT" \
+  --graceful-timeout "$GUNICORN_GRACEFUL_TIMEOUT"

@@ -6,7 +6,10 @@ from accesscontrol.services import sync_permission_catalog
 
 
 @receiver(post_migrate)
-def seed_access_permissions(**kwargs):
+def seed_access_permissions(sender=None, **kwargs):
+    if sender is None or sender.label != "accesscontrol":
+        return
+
     try:
         sync_permission_catalog()
     except (OperationalError, ProgrammingError):
