@@ -33,7 +33,17 @@ class ItemViewSet(generics.GenericAPIView):
             ).get(id=request.data.get("category"))
             ensure_object_in_user_branch(category, request)
 
-        if self.get_queryset().filter(name=request.data.get("name")).exists():
+        raw_name = (request.data.get("name") or "").strip()
+        if not raw_name:
+            return Response(
+                {"status": False, "message": "Item name is required", "data": {}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.data["name"] = raw_name
+        # Case-insensitive duplicate check so "Khandvi" and "khandvi" don't end
+        # up as separate Items — recipes would split between them and the
+        # ingredient calculation would only ever match one casing.
+        if self.get_queryset().filter(name__iexact=raw_name).exists():
             return Response(
                 {"status": False, "message": "Item already exists", "data": {}},
                 status=status.HTTP_400_BAD_REQUEST,

@@ -16,6 +16,7 @@ from user.branching import (
     filter_branch_queryset,
     get_branch_save_kwargs,
 )
+from django.db.models import Q
 import difflib
 
 
@@ -104,7 +105,14 @@ def calculate_ingredients_required(session_obj):
 
     # Accumulate in Decimal so scale factors like 73/100 don't drift across
     # many ingredients. Converted back to float at the response boundary.
-    total_ingredients = defaultdict(lambda: {"value": Decimal("0"), "unit": "", "used_in": set()})
+    # `category` is captured straight from the recipe's FK chain
+    # (RecipeIngredient.ingredient.category) so we don't have to round-trip
+    # through a separate IngridientsItem name lookup — that round-trip used to
+    # drop the category when the ingredient's branch_profile didn't match the
+    # booking's, leaving the UI to fall back to "Uncategorized".
+    total_ingredients = defaultdict(
+        lambda: {"value": Decimal("0"), "unit": "", "used_in": set(), "category": ""}
+    )
 
     from .models import EventItemConfig
 
@@ -161,12 +169,35 @@ def calculate_ingredients_required(session_obj):
         else:
             in_house_dish_names.append(dish)
 
-    recipe_qs = RecipeIngredient.objects.select_related("item", "ingredient__category").filter(
-        item__branch_profile=session_obj.booking.branch_profile,
-        item__name__in=in_house_dish_names,
+    # Build a case-insensitive lookup so dish names like "Khandvi" / "khandvi" /
+    # " Khandvi " in selected_items all match Item.name regardless of how it was
+    # cased when the recipe was created. Without this, a single keystroke
+    # difference between recipe creation and order entry silently drops the
+    # whole recipe from the ingredient calculation.
+    norm_dish_names = {d.strip().lower() for d in in_house_dish_names if d}
+
+    # Tolerate NULL-branch (tenant-global) items as well as items on the
+    # booking's branch — otherwise recipes created outside a branch context
+    # never surface for any branched order.
+    booking_branch = session_obj.booking.branch_profile
+    branch_filter = Q(item__branch_profile=booking_branch) | Q(
+        item__branch_profile__isnull=True
     )
 
+    recipe_qs = (
+        RecipeIngredient.objects.select_related("item", "ingredient__category")
+        .filter(branch_filter)
+    )
+
+    matched_dishes = set()
     for ri in recipe_qs:
+        item_name = (ri.item.name or "").strip()
+        if not item_name:
+            continue
+        if item_name.lower() not in norm_dish_names:
+            continue
+        matched_dishes.add(item_name.lower())
+
         ingredient_name = ri.ingredient.name.strip()
         qty = float(ri.quantity or 0)
         unit = ri.unit or ""
@@ -177,18 +208,48 @@ def calculate_ingredients_required(session_obj):
         total_ingredients[ingredient_name]["value"] += Decimal(str(base_quantity)) * scale_factor
         if base_unit:
             total_ingredients[ingredient_name]["unit"] = base_unit
-        total_ingredients[ingredient_name]["used_in"].add(ri.item.name.strip())
+        total_ingredients[ingredient_name]["used_in"].add(item_name)
+        # Pull the category straight off the recipe's FK so it survives even
+        # when the IngridientsItem lives on a different branch_profile than
+        # the booking — the category_map below is just a fallback.
+        if (
+            not total_ingredients[ingredient_name]["category"]
+            and ri.ingredient.category_id
+            and ri.ingredient.category
+        ):
+            total_ingredients[ingredient_name]["category"] = (
+                ri.ingredient.category.name or ""
+            )
+
+    # Surface dishes that we tried to look up but found no recipe for. Logging
+    # makes the "recipe defined but ingredients don't appear" class of bug
+    # debuggable from server logs alone.
+    unmatched = norm_dish_names - matched_dishes
+    if unmatched:
+        logger.info(
+            "Session %s: no recipe rows matched for dishes %s (booking branch=%s)",
+            getattr(session_obj, "id", "?"),
+            sorted(unmatched),
+            getattr(booking_branch, "id", None),
+        )
 
     from ListOfIngridients.models import IngridientsItem
-    # To support spelling variations like Tomato/Tomata, load all items and fallback via fuzzy matching
+    # To support spelling variations like Tomato/Tomata, load all items and fallback via fuzzy matching.
+    # Include NULL-branch (tenant-global) ingredient items too, so recipes that
+    # reference globally-defined ingredients still resolve a category instead
+    # of falling back to "Uncategorized" in the UI.
     items_with_categories = IngridientsItem.objects.select_related("category").filter(
-        branch_profile=session_obj.booking.branch_profile
+        Q(branch_profile=booking_branch) | Q(branch_profile__isnull=True)
     )
     category_map = {item.name.strip().lower(): item.category.name for item in items_with_categories}
 
     from stockmanagement.models import StokeItem
-    # To support spelling variations, load all stock items and then fuzzy-search names
-    stock_items = StokeItem.objects.filter(branch_profile=session_obj.booking.branch_profile)
+    # To support spelling variations, load all stock items and then fuzzy-search names.
+    # Same NULL-branch tolerance as the ingredient lookup above — without it,
+    # stock for tenant-global items never gets attached to recipe ingredients.
+    stock_items = StokeItem.objects.filter(
+        Q(branch_profile=booking_branch) | Q(branch_profile__isnull=True)
+    )
     stock_map = {}
     for item in stock_items:
         readable_quantity, readable_type = to_readable_quantity_unit(
@@ -219,7 +280,13 @@ def calculate_ingredients_required(session_obj):
         converted_value, converted_unit = to_readable_quantity_unit(
             float(data["value"]), data["unit"]
         )
-        cat = category_map.get(ingredient.strip().lower(), "")
+        # Prefer the category we captured directly from the recipe FK above —
+        # falls back to the branch-scoped IngridientsItem name lookup only if
+        # the recipe FK didn't carry one (e.g. older rows where category was
+        # null, or non-recipe code paths that populate total_ingredients).
+        cat = data.get("category") or ""
+        if not cat:
+            cat = category_map.get(ingredient.strip().lower(), "")
         if not cat:
             cat = fuzzy_lookup(ingredient, category_map, cutoff=0.6) or ""
 
@@ -256,12 +323,12 @@ def calculate_ingredients_required(session_obj):
             final_ingredients[ingredient]["vendor"] = vendor_info
 
     common_items = IngridientsItem.objects.filter(
-        branch_profile=session_obj.booking.branch_profile,
+        Q(branch_profile=booking_branch) | Q(branch_profile__isnull=True),
         category__is_common=True,
     ).select_related("category")
     common_names = [item.name for item in common_items]
     common_stock_items = StokeItem.objects.filter(
-        branch_profile=session_obj.booking.branch_profile,
+        Q(branch_profile=booking_branch) | Q(branch_profile__isnull=True),
         name__in=common_names,
     )
     common_stock_map = {}
