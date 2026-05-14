@@ -43,6 +43,50 @@ def _session_id_from_payload(payload):
     return payload.get("session_id") or payload.get("session")
 
 
+def _extract_dish_names(node):
+    """Recursively collect dish names from a selected_items payload.
+
+    Handles flat entries (`{"name": "Jeera Rice"}`), bare strings, and
+    nested subcategory dicts (`{"Juice": [{"name": "Lichi Coconet"}]}`).
+    Tolerates corrupted shapes where `name` itself is a dict by recursing
+    into the value instead of crashing on `.strip()`.
+    """
+    names = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "name" and isinstance(value, str):
+                names.append(value.strip())
+            else:
+                names.extend(_extract_dish_names(value))
+    elif isinstance(node, list):
+        for item in node:
+            names.extend(_extract_dish_names(item))
+    elif isinstance(node, str):
+        stripped = node.strip()
+        if stripped:
+            names.append(stripped)
+    return names
+
+
+def _normalize_selected_items(selected_items):
+    """Wrap raw string dish entries as `{"name": str}` while leaving dicts
+    untouched. Idempotent so it's safe to apply multiple times, and
+    preserves nested subcategory dicts like `{"Juice": [...]}` instead of
+    double-wrapping them into `{"name": {"Juice": [...]}}`."""
+    if not isinstance(selected_items, dict):
+        return selected_items
+    normalized = {}
+    for key, value in selected_items.items():
+        if isinstance(value, list):
+            normalized[key] = [
+                {"name": item} if isinstance(item, str) else item
+                for item in value
+            ]
+        else:
+            normalized[key] = value
+    return normalized
+
+
 def calculate_ingredients_required(session_obj):
     try:
         persons = int(session_obj.estimated_persons)
@@ -56,22 +100,7 @@ def calculate_ingredients_required(session_obj):
         persons = DEFAULT_ESTIMATED_PERSONS
 
     selected_items = session_obj.selected_items or {}
-    dish_names = []
-
-    if isinstance(selected_items, dict):
-        for category_items in selected_items.values():
-            if isinstance(category_items, list):
-                for item in category_items:
-                    if isinstance(item, dict) and item.get("name"):
-                        dish_names.append(item["name"].strip())
-                    elif isinstance(item, str):
-                        dish_names.append(item.strip())
-    elif isinstance(selected_items, list):
-        for item in selected_items:
-            if isinstance(item, dict) and item.get("name"):
-                dish_names.append(item["name"].strip())
-            elif isinstance(item, str):
-                dish_names.append(item.strip())
+    dish_names = _extract_dish_names(selected_items)
 
     # Accumulate in Decimal so scale factors like 73/100 don't drift across
     # many ingredients. Converted back to float at the response boundary.
@@ -325,13 +354,10 @@ class EventBookingViewSet(generics.GenericAPIView):
 
         # Process each session's selected_items and extra_service
         for session in sessions:
-            # Convert the selected_items payload for the session
-            selected_items = session.get("selected_items", {})
-            converted_payload = {
-                key: [{"name": item} for item in value]
-                for key, value in selected_items.items()
-            }
-            session["selected_items"] = converted_payload
+            # Normalize the selected_items payload for the session
+            session["selected_items"] = _normalize_selected_items(
+                session.get("selected_items", {})
+            )
 
             # Calculate extra_service_amount for the session
             extra_services = session.get("extra_service", [])
@@ -469,18 +495,7 @@ class EventBookingGetViewSet(generics.GenericAPIView):
                         )
 
                     if selected_items and isinstance(selected_items, dict):
-                        # Some logic might pass already converted items, check if it's list of strings
-                        is_unconverted = any(
-                            isinstance(v, list) and len(v) > 0 and isinstance(v[0], str)
-                            for v in selected_items.values()
-                        )
-
-                        if is_unconverted:
-                            converted_payload = {
-                                key: [{"name": item} for item in value]
-                                for key, value in selected_items.items()
-                            }
-                            session["selected_items"] = converted_payload
+                        session["selected_items"] = _normalize_selected_items(selected_items)
 
                 request.data["sessions"] = sessions
 
