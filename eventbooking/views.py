@@ -16,7 +16,7 @@ from user.branching import (
     filter_branch_queryset,
     get_branch_save_kwargs,
 )
-from django.db.models import Q
+from django.db.models import F, Q
 import difflib
 
 
@@ -807,10 +807,16 @@ class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
             from ListOfIngridients.models import IngridientsItem
             ingredient_qs = IngridientsItem.objects.filter(name__iexact=ingredient_name)
             if session is not None:
-                ingredient_qs = ingredient_qs.filter(
-                    branch_profile=session.booking.branch_profile
-                )
-            ingredient_obj = ingredient_qs.first()
+                booking_branch_id = session.booking.branch_profile_id
+                if booking_branch_id is not None:
+                    ingredient_qs = ingredient_qs.filter(
+                        Q(branch_profile_id=booking_branch_id)
+                        | Q(branch_profile__isnull=True)
+                    )
+            # Prefer branch-specific match over a global (null branch_profile) one
+            ingredient_obj = ingredient_qs.order_by(
+                F("branch_profile").asc(nulls_last=True)
+            ).first()
             if not ingredient_obj:
                 return Response({"error": f"Ingredient '{ingredient_name}' not found"}, status=400)
             payload["ingredient"] = ingredient_obj.id

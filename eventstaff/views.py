@@ -127,6 +127,7 @@ class StaffViewSet(viewsets.ModelViewSet):
                 "staff_type",
                 "fixed_salary",
                 "per_person_rate",
+                "agency_services",
                 "is_active",
                 "role__name",
                 "waiter_type__name",
@@ -150,6 +151,7 @@ class StaffViewSet(viewsets.ModelViewSet):
                         waiter.get("waiter_type__per_person_rate") or 0.0
                     ),
                     "per_person_rate": float(waiter["per_person_rate"] or 0.0),
+                    "agency_services": waiter.get("agency_services") or [],
                     "fixed_salary": float(waiter["fixed_salary"] or 0.0),
                     "is_active": waiter["is_active"],
                     "linked_username": waiter.get("user_account__username"),

@@ -173,6 +173,32 @@ class StaffSerializer(serializers.ModelSerializer):
                     {"login_username": "This username is already in use."}
                 )
 
+        # New logic for employment type validation
+        staff_type = attrs.get("staff_type", getattr(self.instance, "staff_type", "Contract"))
+
+        if staff_type == "Fixed":
+            fixed_salary = attrs.get("fixed_salary", getattr(self.instance, "fixed_salary", None))
+            if not fixed_salary or Decimal(str(fixed_salary)) <= 0:
+                raise serializers.ValidationError(
+                    {"fixed_salary": "Fixed salary is required and must be greater than 0."}
+                )
+        elif staff_type == "Contract":
+            per_person_rate = attrs.get("per_person_rate", getattr(self.instance, "per_person_rate", 0))
+            if not per_person_rate or Decimal(str(per_person_rate)) <= 0:
+                raise serializers.ValidationError(
+                    {"per_person_rate": "Per person rate is required and must be greater than 0."}
+                )
+        elif staff_type == "Agency":
+            agency_services = attrs.get("agency_services", getattr(self.instance, "agency_services", []))
+            valid_services = [
+                s for s in agency_services
+                if s.get("service_name") and s.get("service_name").strip() and Decimal(str(s.get("rate", 0))) > 0
+            ]
+            if not valid_services:
+                raise serializers.ValidationError(
+                    {"agency_services": "Add at least one service with a name and rate greater than 0."}
+                )
+
         return attrs
 
     def _upsert_login_user(self, staff, validated_data):
