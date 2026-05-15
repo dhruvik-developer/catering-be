@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password as django_validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.db.models import Q
+from django_tenants.utils import tenant_context
 from rest_framework import serializers
 
 from accesscontrol.models import PermissionModule
@@ -166,6 +168,7 @@ class ClientSerializer(serializers.ModelSerializer):
         source="created_by.username",
         read_only=True,
     )
+    tenant_admins = serializers.SerializerMethodField()
 
     class Meta:
         model = Client
@@ -193,6 +196,7 @@ class ClientSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "admin",
+            "tenant_admins",
         ]
         read_only_fields = [
             "id",
@@ -204,11 +208,45 @@ class ClientSerializer(serializers.ModelSerializer):
             "created_by_username",
             "created_at",
             "updated_at",
+            "tenant_admins",
         ]
 
     def get_primary_domain(self, obj):
         domain = obj.get_primary_domain()
         return domain.domain if domain else None
+
+    def get_tenant_admins(self, obj):
+        if getattr(obj, "schema_status", "") != "ready" or not obj.schema_name:
+            return []
+
+        UserModel = get_user_model()
+        try:
+            with tenant_context(obj):
+                admins = list(
+                    UserModel.objects.filter(
+                        Q(branch_role=UserModel.BRANCH_ROLE_MAIN_ADMIN)
+                        | Q(is_superuser=True)
+                        | Q(is_staff=True)
+                    ).order_by("date_joined")
+                )
+        except Exception:
+            return []
+
+        return [
+            {
+                "id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_active": user.is_active,
+                "is_staff": user.is_staff,
+                "is_superuser": user.is_superuser,
+                "branch_role": user.branch_role,
+                "date_joined": user.date_joined,
+            }
+            for user in admins
+        ]
 
     def _get_unique_schema_name(self, value):
         try:
