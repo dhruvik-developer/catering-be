@@ -213,6 +213,69 @@ tenant schema.
 
 Migration bridge note: existing legacy migrations contain cross-app dependencies that require public to retain some business tables during the transition. Runtime isolation still happens through tenant schemas. A later cleanup should squash/split those legacy migrations so public contains only platform tables.
 
+## Loading Menu Data
+
+The `load_menu` management command imports the catering menu (categories, subcategories, and items) from [`menu.json`](menu.json) into a tenant schema. It walks the `menu` object in the JSON and inserts rows into `category_category` and `item_item` under the given tenant.
+
+### Schema mapping
+
+For an entry like:
+
+```json
+"Welcome Drink": {
+  "Mocktails": ["Sundowner", "Berrylicious Bliss"]
+}
+```
+
+The command creates:
+
+- `category_category` row: `name="Welcome Drink"`, `parent_id=NULL` (top-level category)
+- `category_category` row: `name="Mocktails"`, `parent_id=<Welcome Drink id>` (subcategory)
+- `item_item` rows: `name="Sundowner"`, `name="Berrylicious Bliss"` with `category_id=<Mocktails id>`
+
+All created rows get:
+
+- `branch_profile_id = 1` (override with `--branch-profile-id`)
+- `positions` = 1-based index among siblings at the moment of insert
+- `base_cost = 0`, `selection_rate = 0` on items
+
+Lists nested at any depth (e.g. `Starter > Chinese > Mains > [...items]`) and lists placed directly under a top-level key (e.g. `Chef's Special Baked Dishes`) are both handled.
+
+### Usage
+
+Preview without writing:
+
+```powershell
+python manage.py load_menu --schema=bansuricatering --dry-run
+```
+
+Run the import:
+
+```powershell
+python manage.py load_menu --schema=bansuricatering
+```
+
+Optional flags:
+
+- `--menu-file <path>` — path to a different JSON file (defaults to `<BASE_DIR>/menu.json`)
+- `--branch-profile-id <n>` — `branch_profile_id` value for all created rows (default `1`)
+
+### Idempotency
+
+The command is safe to re-run after updating `menu.json` with missing entries — it will not duplicate existing rows:
+
+- Categories are matched on `(name, parent)` via `get_or_create`.
+- Items are matched on `(name, category)` via `get_or_create`.
+- New entries in the JSON are inserted; rows that already exist are reused.
+
+The output summary shows the split, for example:
+
+```text
+Menu loaded into 'bansuricatering'. Categories: +2 (reused 27). Items: +15 (reused 218).
+```
+
+The tenant must already be registered (`tenant_client` row) — bootstrap it via `bootstrap_saas` or the `POST /api/tenants/` endpoint first.
+
 ## API Modules and Endpoints
 
 All routes are under `/api/`.
