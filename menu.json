@@ -1,0 +1,502 @@
+{
+  "packages": [
+    {
+      "name": "Bliss",
+      "items": {
+        "soup": 1,
+        "main_course": 2,
+        "indian_breads": 2,
+        "sweet": 1,
+        "farsan": 1,
+        "rice": 1,
+        "dal": 1,
+        "green_salad": 1,
+        "papad_pickle": true,
+        "mukhvas": true,
+        "water": "20L Jar Included"
+      }
+    },
+    {
+      "name": "Epicure",
+      "items": {
+        "welcome_drink": 1,
+        "soup": 1,
+        "chaat_counter": 1,
+        "starter_live_counter": 1,
+        "main_course": 2,
+        "indian_breads": 2,
+        "sweets": 2,
+        "farsan": 1,
+        "rice": 1,
+        "dal": 1,
+        "dessert": 1,
+        "green_salad": 1,
+        "papad_pickle": true,
+        "mukhvas": true,
+        "mini_water_bottles": true
+      }
+    },
+    {
+      "name": "Maharajas Feast",
+      "items": {
+        "welcome_drinks": 2,
+        "moving_starters": 2,
+        "soup": 2,
+        "chaat_counter": 1,
+        "starter_live_counter": 1,
+        "special_counter": 1,
+        "world_cuisine_live": 1,
+        "main_course": 2,
+        "indian_breads": 2,
+        "sweets": 2,
+        "farsan": 1,
+        "rice": 1,
+        "dal": 1,
+        "dessert": 1,
+        "green_salad": 1,
+        "salad_variety": 1,
+        "papad_pickle": true,
+        "mukhvas": true,
+        "mini_water_bottles": true
+      }
+    }
+  ],
+  "menu": {
+    "Welcome Drink": {
+      "Mocktails": [
+        "Sundowner",
+        "Berrylicious Bliss",
+        "Tropical Trio",
+        "Mix Fruit Frenzy",
+        "Beach Paradise",
+        "Hawaiian Pina Tango",
+        "Kiwi Blossom",
+        "Pina Colada",
+        "Strawberry Swiss Velvet",
+        "Orange Pineapple Sunrise"
+      ],
+      "Mojitos": [
+        "Classic Mint Mojito",
+        "Berry Bubbles Mojito",
+        "Lychee Mint Mojito",
+        "Melon Mint Mojito",
+        "Sunrise Mojito",
+        "Guava Mojito"
+      ],
+      "Fizzy Coolers": [
+        "Berry Tropical",
+        "Fresh Fizz",
+        "Ocean’s Delight",
+        "Island Escape",
+        "Sunshine Punch"
+      ]
+    },
+
+    "Moving Starter": {
+      "Kababs": [
+        "Harabhara Kabab",
+        "Pudina Kabab",
+        "Paneer Pudina Kabab",
+        "Spinach Kabab",
+        "Hyderabadi Kabab",
+        "Veg Kabab Tikki"
+      ],
+
+      "Minis": [
+        "Cheese Corn Balls",
+        "Spinach Cheese Balls",
+        "Mushroom Cheese Balls",
+        "Mexican Balls"
+      ],
+
+      "Rolls": [
+        "Mini Spring Roll",
+        "Mexican Roll",
+        "Russian Roll",
+        "Paneer Corn Potato Roll",
+        "Aloo Makai Roll",
+        "Aloo Paneer Roll"
+      ],
+
+      "Incredibly Indian": [
+        "Mini Samosa",
+        "Mini Kachori",
+        "Basket Chaat",
+        "Corn Chana Chaat"
+      ],
+
+      "Sides": [
+        "Mexican Basket",
+        "Bruschetta",
+        "Baby Pizza",
+        "Mushroom Tikka"
+      ],
+
+      "Bites": [
+        "Cheese Pineapple Cherry Stick",
+        "Pepper Paneer Corn Paneer Cutlet"
+      ],
+
+      "Tikki": [
+        "Mutter Palak Tikki",
+        "Aloo Tikki",
+        "Chana Tikki",
+        "Corn Tikki"
+      ]
+    },
+
+    "Soup": {
+      "Mild & Hearty": [
+        "Tomato Cream Soup",
+        "Veg Clear Soup",
+        "Almond Broccoli",
+        "Sweet Corn Soup",
+        "Green Asian Soup",
+        "Broccoli Corn",
+        "Corn Spinach Soup"
+      ],
+
+      "Pan Asian Tasty": [
+        "Tomato Basil",
+        "Manchow Soup",
+        "Minestrone Soup",
+        "Lemon Coriander",
+        "Hot & Sour Soup",
+        "Burnt Garlic Soup"
+      ],
+
+      "Chef's Special": [
+        "Thai Tom Yum Soup",
+        "Khow Suey",
+        "Thukpa Soup",
+        "Italian Garlic Soup",
+        "Mexican Chili Bean",
+        "Shroom Velvet Symphony",
+        "Japanese Ramen Soup"
+      ]
+    },
+
+    "Chaat": {
+      "Chatpata Chaat": [
+        "Panipuri",
+        "Bhel Puri",
+        "Aloo Tikki Chaat",
+        "Delhi Chaat",
+        "Papdi Chaat",
+        "Dahi Bhalla",
+        "Kachori Chaat",
+        "Samosa Chaat",
+        "Corn Tikki Chaat",
+        "Kele Ki Tikkyan",
+        "Aloo Chaat"
+      ]
+    },
+
+    "Starter": {
+      "South ka Tadka": {
+        "Dosa": [
+          "Mysore Dosa",
+          "Masala Dosa",
+          "Palak Corn Dosa",
+          "Palak Paneer Dosa",
+          "Spring Roll Dosa",
+          "Jini Roll Dosa",
+          "Sweet Corn Dosa",
+          "Ragi Dosa"
+        ],
+
+        "Uttapam": [
+          "Onion Uttapam",
+          "Tomato Uttapam",
+          "Mix Vegetables Uttapam",
+          "Masala Uttapam",
+          "Palak Corn Uttapam"
+        ],
+
+        "Idli": [
+          "Podi Idli",
+          "Veg Idli"
+        ]
+      },
+
+      "Delhi Se": {
+        "Parathas": [
+          "Aloo Paratha",
+          "Palak Paratha",
+          "Methi Paratha",
+          "Gobi Paratha",
+          "Onion Paratha",
+          "Mix Veg Paratha"
+        ],
+
+        "Chilla": [
+          "Paneer Chilla",
+          "Hyderabadi Chilla",
+          "Mutter Chilla",
+          "Moong Dal Chilla"
+        ]
+      },
+
+      "Pakoras": [
+        "Onion Pakora",
+        "Methi Pakora",
+        "Kela Methi Pakora",
+        "Bataka Puri",
+        "Metha Gota",
+        "Bataka Wada",
+        "Bharela Marcha"
+      ],
+
+      "Surat ki Shaan": [
+        "Corn Dhokla",
+        "Spinach Dhokla",
+        "Vegetable Dhokla",
+        "Locha",
+        "Idada",
+        "Patra"
+      ],
+
+      "Chinese": {
+        "Mains": [
+          "Dry Manchurian",
+          "Gravy Manchurian",
+          "Green Manchurian",
+          "Chinese Bhel",
+          "Bombay Bhel",
+          "Vegetable Crispy",
+          "Vegetable Lollipop",
+          "Vegetable 65",
+          "Vegetables in Hunan Sauce",
+          "Honey Chili Potatoes",
+          "Paneer Manchurian"
+        ],
+
+        "Rolls": [
+          "Spring Roll"
+        ],
+
+        "Rice & Noodles": [
+          "Hakka Noodles",
+          "Fried Rice",
+          "Schezuan Rice",
+          "Shanghai Rice",
+          "Manchurian Rice"
+        ]
+      }
+    },
+
+    "Special Counter": {
+      "Barbeque": [
+        "Tandoori Vegetable Seek Kabab",
+        "Hariyali Seek Kabab",
+        "Tandoori Soya Chaap with Vegetables",
+        "Hariyali Soya Chaap with Vegetables"
+      ],
+
+      "Chaat Special": [
+        "Palak Patta Crispy Chaat",
+        "Rose Dahi Bhalla",
+        "Special Dryfruit Makhana Chaat"
+      ],
+
+      "Hot Chaat": [
+        "Ragda Samosa",
+        "Aloo Tikki Ragda"
+      ]
+    },
+
+    "World Cuisine": {
+      "Italian Cuisine": [
+        "Cheese Garlic Bread",
+        "Bruschetta",
+        "Penne Al-Arrabiata",
+        "Alfredo Pasta",
+        "Pesto Pasta",
+        "Aglio e Olio",
+        "Panini Sandwich",
+        "Italian Thin Crust Pizza",
+        "Mushroom Risotto",
+        "Basil Pesto Rice"
+      ],
+
+      "Mexican Cuisine": [
+        "Nachos",
+        "Tacos",
+        "Quesadillas",
+        "Pizza Mexicana",
+        "Foot Long",
+        "Mexican Rice with Curry",
+        "Burritos"
+      ],
+
+      "Mongolian Cuisine": [
+        "Veg Mongolian",
+        "Stir-fried Veg Mongolian Rice and Noodles"
+      ],
+
+      "Lebanese Cuisine": [
+        "Falafel with Hummus",
+        "Falafel Pockets/Rolls",
+        "Hummus with Pita Bread"
+      ],
+
+      "Thai Cuisine": [
+        "Classic Thai Curry",
+        "Thai Herbed Veg Curry",
+        "Thai Herbed Stir Fry Vegetable with Mushroom/Paneer"
+      ],
+
+      "Swiss Cuisine": [
+        "Classic Potato Rosti",
+        "Rosti with a Twist",
+        "Mashed Potatoes"
+      ]
+    },
+
+    "Chef's Special Baked Dishes": [
+      "Italian Baked Pasta",
+      "Baked Ravioli",
+      "Lasagna",
+      "Cannelloni",
+      "Au Gratin",
+      "Enchiladas",
+      "Pesto Enchiladas"
+    ],
+
+    "Sweets": {
+      "Rabri": [
+        "Kesar Rabri",
+        "Sitafal Rabri",
+        "Anjeer Rabri",
+        "Angoor Rabri",
+        "Shahi Dryfruit Rabri",
+        "Walnut Rabri",
+        "Rose Rabri",
+        "Sevai Rabri"
+      ],
+
+      "Cold Sweet": [
+        "Shreekhand",
+        "Mattha",
+        "Ras Madhuri",
+        "Rasmalai"
+      ],
+
+      "Halwai se": [
+        "Lapsi",
+        "Sheera",
+        "Dudhi Ka Halwa",
+        "Moong Dal Halwa",
+        "Churma Laddu",
+        "Kala Jamun"
+      ],
+
+      "Hot": [
+        "Gulab Jamun",
+        "Kesaria Jalebi",
+        "Jalebi Rabri"
+      ],
+
+      "Tawa Mithai": [
+        "Anyone Halwa",
+        "Kalakand"
+      ],
+
+      "Summer Special": [
+        "Kesar Aam Ras",
+        "Mix Fruit Cream",
+        "Mango Rabri"
+      ],
+
+      "Bengali Sweets": [
+        "Rasgulla",
+        "Rajbhog",
+        "Rasmalai",
+        "Ras Madhuri",
+        "Kamal Bhog",
+        "Gulabi Masti",
+        "Rasmadhuri",
+        "Kacha Gola Sandesh",
+        "Kheer",
+        "Kheer Kadam",
+        "Lychee Gulla",
+        "Coconut Idli",
+        "Golden Boat",
+        "Tohfa",
+        "Blueberry Blast",
+        "Indrani"
+      ],
+
+      "Sandesh": [
+        "Plain",
+        "Kesar",
+        "Rose",
+        "Mango",
+        "Pineapple",
+        "Chocolate"
+      ],
+
+      "Malai Roll": [
+        "Plain",
+        "Kesar",
+        "Rose",
+        "Strawberry",
+        "Chocolate"
+      ],
+
+      "Cham Cham": [
+        "Rose",
+        "Kesar",
+        "Malai",
+        "Strawberry",
+        "Chocolate"
+      ],
+
+      "Delight": [
+        "Kesar",
+        "Orange",
+        "Mango",
+        "Chocolate",
+        "Strawberry"
+      ],
+
+      "Gujarati Sweets": [
+        "Motichoor Laddu",
+        "Dry Fruit Halwa",
+        "Royal Dryfruit Kasata",
+        "Kaju Kasata",
+        "Kaju Katri",
+        "Sangam Katri",
+        "Anjeer Roll",
+        "Kaju Anjeer Roll",
+        "Coconut Roll",
+        "Coconut Laddu",
+        "Dryfruit Paan",
+        "Kaju Paan",
+        "Anjeer Bahar"
+      ]
+    }
+  },
+  "extra_charges": {
+    "welcome_drink": {
+      "regular": 50,
+      "exotic": 70
+    },
+    "soup": {
+      "regular": 60,
+      "exotic": 80
+    },
+    "starter_chaat": {
+      "regular": 70,
+      "exotic": 90
+    },
+    "world_cuisine": {
+      "regular": 100,
+      "exotic": 150
+    },
+    "baked_dish": {
+      "regular": 150,
+      "exotic": 200
+    }
+  }
+}
