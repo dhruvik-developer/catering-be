@@ -91,7 +91,6 @@
         "Sunshine Punch"
       ]
     },
-
     "Moving Starter": {
       "Kababs": [
         "Harabhara Kabab",
@@ -101,14 +100,12 @@
         "Hyderabadi Kabab",
         "Veg Kabab Tikki"
       ],
-
       "Minis": [
         "Cheese Corn Balls",
         "Spinach Cheese Balls",
         "Mushroom Cheese Balls",
         "Mexican Balls"
       ],
-
       "Rolls": [
         "Mini Spring Roll",
         "Mexican Roll",
@@ -117,26 +114,22 @@
         "Aloo Makai Roll",
         "Aloo Paneer Roll"
       ],
-
       "Incredibly Indian": [
         "Mini Samosa",
         "Mini Kachori",
         "Basket Chaat",
         "Corn Chana Chaat"
       ],
-
       "Sides": [
         "Mexican Basket",
         "Bruschetta",
         "Baby Pizza",
         "Mushroom Tikka"
       ],
-
       "Bites": [
         "Cheese Pineapple Cherry Stick",
         "Pepper Paneer Corn Paneer Cutlet"
       ],
-
       "Tikki": [
         "Mutter Palak Tikki",
         "Aloo Tikki",
@@ -144,7 +137,6 @@
         "Corn Tikki"
       ]
     },
-
     "Soup": {
       "Mild & Hearty": [
         "Tomato Cream Soup",
@@ -155,7 +147,6 @@
         "Broccoli Corn",
         "Corn Spinach Soup"
       ],
-
       "Pan Asian Tasty": [
         "Tomato Basil",
         "Manchow Soup",
@@ -164,7 +155,6 @@
         "Hot & Sour Soup",
         "Burnt Garlic Soup"
       ],
-
       "Chef's Special": [
         "Thai Tom Yum Soup",
         "Khow Suey",
@@ -175,7 +165,6 @@
         "Japanese Ramen Soup"
       ]
     },
-
     "Chaat": {
       "Chatpata Chaat": [
         "Panipuri",
@@ -191,7 +180,6 @@
         "Aloo Chaat"
       ]
     },
-
     "Starter": {
       "South ka Tadka": {
         "Dosa": [
@@ -204,7 +192,6 @@
           "Sweet Corn Dosa",
           "Ragi Dosa"
         ],
-
         "Uttapam": [
           "Onion Uttapam",
           "Tomato Uttapam",
@@ -212,13 +199,11 @@
           "Masala Uttapam",
           "Palak Corn Uttapam"
         ],
-
         "Idli": [
           "Podi Idli",
           "Veg Idli"
         ]
       },
-
       "Delhi Se": {
         "Parathas": [
           "Aloo Paratha",
@@ -228,7 +213,6 @@
           "Onion Paratha",
           "Mix Veg Paratha"
         ],
-
         "Chilla": [
           "Paneer Chilla",
           "Hyderabadi Chilla",
@@ -236,7 +220,6 @@
           "Moong Dal Chilla"
         ]
       },
-
       "Pakoras": [
         "Onion Pakora",
         "Methi Pakora",
@@ -246,7 +229,6 @@
         "Bataka Wada",
         "Bharela Marcha"
       ],
-
       "Surat ki Shaan": [
         "Corn Dhokla",
         "Spinach Dhokla",
@@ -255,7 +237,6 @@
         "Idada",
         "Patra"
       ],
-
       "Chinese": {
         "Mains": [
           "Dry Manchurian",
@@ -270,11 +251,9 @@
           "Honey Chili Potatoes",
           "Paneer Manchurian"
         ],
-
         "Rolls": [
           "Spring Roll"
         ],
-
         "Rice & Noodles": [
           "Hakka Noodles",
           "Fried Rice",
@@ -284,7 +263,6 @@
         ]
       }
     },
-
     "Special Counter": {
       "Barbeque": [
         "Tandoori Vegetable Seek Kabab",
@@ -292,19 +270,16 @@
         "Tandoori Soya Chaap with Vegetables",
         "Hariyali Soya Chaap with Vegetables"
       ],
-
       "Chaat Special": [
         "Palak Patta Crispy Chaat",
         "Rose Dahi Bhalla",
         "Special Dryfruit Makhana Chaat"
       ],
-
       "Hot Chaat": [
         "Ragda Samosa",
         "Aloo Tikki Ragda"
       ]
     },
-
     "World Cuisine": {
       "Italian Cuisine": [
         "Cheese Garlic Bread",
@@ -318,7 +293,6 @@
         "Mushroom Risotto",
         "Basil Pesto Rice"
       ],
-
       "Mexican Cuisine": [
         "Nachos",
         "Tacos",
@@ -328,31 +302,26 @@
         "Mexican Rice with Curry",
         "Burritos"
       ],
-
       "Mongolian Cuisine": [
         "Veg Mongolian",
         "Stir-fried Veg Mongolian Rice and Noodles"
       ],
-
       "Lebanese Cuisine": [
         "Falafel with Hummus",
         "Falafel Pockets/Rolls",
         "Hummus with Pita Bread"
       ],
-
       "Thai Cuisine": [
         "Classic Thai Curry",
         "Thai Herbed Veg Curry",
         "Thai Herbed Stir Fry Vegetable with Mushroom/Paneer"
       ],
-
       "Swiss Cuisine": [
         "Classic Potato Rosti",
         "Rosti with a Twist",
         "Mashed Potatoes"
       ]
     },
-
     "Chef's Special Baked Dishes": [
       "Italian Baked Pasta",
       "Baked Ravioli",
@@ -362,7 +331,6 @@
       "Enchiladas",
       "Pesto Enchiladas"
     ],
-
     "Sweets": {
       "Rabri": [
         "Kesar Rabri",
@@ -374,14 +342,12 @@
         "Rose Rabri",
         "Sevai Rabri"
       ],
-
       "Cold Sweet": [
         "Shreekhand",
         "Mattha",
         "Ras Madhuri",
         "Rasmalai"
       ],
-
       "Halwai se": [
         "Lapsi",
         "Sheera",
@@ -390,24 +356,20 @@
         "Churma Laddu",
         "Kala Jamun"
       ],
-
       "Hot": [
         "Gulab Jamun",
         "Kesaria Jalebi",
         "Jalebi Rabri"
       ],
-
       "Tawa Mithai": [
         "Anyone Halwa",
         "Kalakand"
       ],
-
       "Summer Special": [
         "Kesar Aam Ras",
         "Mix Fruit Cream",
         "Mango Rabri"
       ],
-
       "Bengali Sweets": [
         "Rasgulla",
         "Rajbhog",
@@ -426,7 +388,6 @@
         "Blueberry Blast",
         "Indrani"
       ],
-
       "Sandesh": [
         "Plain",
         "Kesar",
@@ -435,7 +396,6 @@
         "Pineapple",
         "Chocolate"
       ],
-
       "Malai Roll": [
         "Plain",
         "Kesar",
@@ -443,7 +403,6 @@
         "Strawberry",
         "Chocolate"
       ],
-
       "Cham Cham": [
         "Rose",
         "Kesar",
@@ -451,7 +410,6 @@
         "Strawberry",
         "Chocolate"
       ],
-
       "Delight": [
         "Kesar",
         "Orange",
@@ -459,7 +417,6 @@
         "Chocolate",
         "Strawberry"
       ],
-
       "Gujarati Sweets": [
         "Motichoor Laddu",
         "Dry Fruit Halwa",
@@ -475,6 +432,394 @@
         "Kaju Paan",
         "Anjeer Bahar"
       ]
+    },
+    "Main Course": {
+      "Subz-E-Paneer": [
+        "Paneer Butter Masala",
+        "Paneer Mutter",
+        "Paneer Jalfrezi",
+        "Paneer Tufani",
+        "Paneer Lazeez",
+        "Paneer Lababdar",
+        "Paneer Afghani",
+        "Palak Paneer",
+        "Paneer Hyderabadi",
+        "Paneer Kali Mirch",
+        "Paneer Makai Makhani",
+        "Paneer Tikka Masala",
+        "Paneer Baby Corn",
+        "Paneer Angara"
+      ],
+      "Subziyon ka Mela": [
+        "Subzi Punchmel",
+        "Mille Julle Subzi",
+        "Navratna Korma",
+        "Veg Kolhapuri",
+        "Veg Hydrabadi",
+        "Veg Angara",
+        "Corn Palak",
+        "Chhole Paneer",
+        "Palak Corn Capsicum",
+        "Baingan Bharta"
+      ],
+      "Aloo ka Khazana": [
+        "Dum Aloo",
+        "Aloo Palak",
+        "Aloo Baingan Mutter",
+        "Aloo Bhindi Masala",
+        "Jodhpuri Aloo",
+        "Jeera Aloo"
+      ],
+      "Protein Ka Khazana": [
+        "Kathol Panchmel",
+        "Chhole Masala",
+        "Moong Dal Curry",
+        "Moong Curry"
+      ],
+      "Tawa Mehfil": [
+        "Tawa Mehfil"
+      ],
+      "Kofte ka Kamaal": [
+        "Nargis Kofta",
+        "Shahi Kofta",
+        "Harabhara Kofta",
+        "Rajdhani Kofta"
+      ],
+      "Gujarat se": [
+        "Punchkutiyu",
+        "Mix Kathol",
+        "Bataka Chips",
+        "Bataka Capsicum",
+        "Bhindi Masala",
+        "Bhindi Capsicum",
+        "Flower Vatana Bataka"
+      ],
+      "Winter Special": [
+        "Undhiyu",
+        "Papadi Ringan",
+        "Papadi Methi Palak",
+        "Papdi Lilwa Sabji",
+        "Papdi Muthiya Sabji",
+        "Methi Mutter Malai"
+      ]
+    },
+    "Indian Breads": {
+      "Tandoor se": {
+        "Butter Roti": [
+          "Tandoori",
+          "Missi",
+          "Pudina",
+          "Methi",
+          "Roomali"
+        ],
+        "Butter Naan": [
+          "Baby Butter",
+          "Garlic",
+          "Stuffed",
+          "Hariyali"
+        ],
+        "Butter Paratha": [
+          "Paratha",
+          "Garlic",
+          "Laccha",
+          "Pudina"
+        ],
+        "Butter Kulcha": [
+          "Kulcha",
+          "Masala",
+          "Pudina",
+          "Amritsari"
+        ]
+      },
+      "Traditional": [
+        "Phulka",
+        "Roti",
+        "Puri"
+      ]
+    },
+    "Farsan": {
+      "Healthy Varieties": [
+        "Idada",
+        "Patra",
+        "Dhokla",
+        "Corn Dhokla",
+        "Sev Khaman",
+        "Vegetable Dhokla",
+        "Spinach Dhokla"
+      ],
+      "Fried": [
+        "Cutlet",
+        "Dal Samosa",
+        "Chinese Samosa",
+        "Russian Roll",
+        "Spring Roll",
+        "Mutter Petis",
+        "Corn Petis",
+        "Mirchi Bhajiya",
+        "Kela Methi Bhajiya",
+        "Veg Lifafa",
+        "Chinese Lifafa",
+        "Aloo Wada",
+        "Ratalu Puri",
+        "Bataka Puri",
+        "Dal Wada",
+        "Methi Gota"
+      ],
+      "Seasonal Farsan": [
+        "Lilwa Kachori",
+        "Lilwa Petis"
+      ]
+    },
+    "Rice": {
+      "Basmati ki Bahar": [
+        "Plain Basmati Rice",
+        "Jeera Rice",
+        "Mutter Pulao",
+        "Schezuan Rice",
+        "Veg Biryani",
+        "Hyderabadi Biryani",
+        "Dum Biryani",
+        "Veg Pulao",
+        "Kashmiri Pulao",
+        "Tawa Pulao",
+        "Khichdi",
+        "Palak Khichdi"
+      ]
+    },
+    "Dal": {
+      "Dal Varieties": [
+        "Dal Fry",
+        "Dal Tadka",
+        "Dal Makhani",
+        "Dal Punchmel",
+        "Dal Palak",
+        "Gujarati Dal",
+        "Lachko Dal",
+        "Kadhi",
+        "Pakode wali Kadhi"
+      ]
+    },
+    "Salad": {
+      "Incredibly Indian Salads": [
+        "Green Salad",
+        "Mix Kachumber",
+        "Masala Corn",
+        "Masala Chana",
+        "Aloo Chana",
+        "Moong Chana",
+        "Chhole Chana",
+        "Potato Chana",
+        "Peanut Chaat",
+        "Sliced Tomato & Mint",
+        "Thai Raw Papaya Salad",
+        "Diced Cucumber",
+        "Diced Watermelon",
+        "Diced Papaya"
+      ]
+    },
+    "Continental Salad": {
+      "Continental Salads": [
+        "Red Pasta",
+        "White Cream Pasta",
+        "Russian Salad",
+        "Cucumber and Dill",
+        "Mexican Three Beans",
+        "Creamy Potato",
+        "Garden Salad",
+        "Veggie Classic"
+      ]
+    },
+    "Raita": {
+      "Incredibly Indian": [
+        "Mix Vegetables Raita",
+        "Boondi Raita",
+        "Tomato Mint Raita",
+        "Cucumber Mint Raita",
+        "Pineapple Raita",
+        "Dahi Tikhara"
+      ]
+    },
+    "Condiments": {
+      "Papad": [
+        "Papad",
+        "Papad Papadi",
+        "Fryums"
+      ],
+      "Pickle": [
+        "Mix",
+        "Mango",
+        "Lemon",
+        "Sambharia Marcha",
+        "Kacchi Keri"
+      ],
+      "Chutney": [
+        "Green",
+        "Meethi",
+        "Coconut",
+        "Garlic"
+      ]
+    },
+    "Dessert": {
+      "Ice Cream": {
+        "All Time Hits": [
+          "Kaju Gulab Gulkand",
+          "Real Mango",
+          "Banarasi Paan",
+          "Asli Guava",
+          "Shahi Faluda",
+          "Chocolate Chips",
+          "Tender Coconut",
+          "Cookies and Cream",
+          "Chocolate Brownie",
+          "Rajbhog",
+          "American Nuts",
+          "Almond Carnival",
+          "Fruit Bonanza",
+          "Kaju Draksh",
+          "Swiss Cake",
+          "Kaju Anjeer",
+          "Mava Malai"
+        ],
+        "Classics": [
+          "Vanilla",
+          "Special Strawberry",
+          "Caramel Butterscotch",
+          "Plain Chocolate",
+          "Mango"
+        ]
+      },
+      "Special Ice Cream": {
+        "Seasonal Special": [
+          "Fresh Lychee",
+          "Fresh Guava",
+          "Fresh Muskmelon",
+          "Fresh Watermelon",
+          "Fresh Jamun",
+          "Fresh Sitafal",
+          "Fresh Mango"
+        ],
+        "Party Special": [
+          "Almond Anjeer",
+          "Afghani Dryfruit",
+          "Royal Oreo",
+          "Dairymilk Cadbury",
+          "KitKat Cadbury",
+          "Pineapple Cadbury",
+          "Black Currant",
+          "Paan Masala",
+          "Popcorn",
+          "Cranberry",
+          "Bubblegum"
+        ],
+        "Mithai Fusion": [
+          "Kaju Katli",
+          "Rasgulla",
+          "Motichoor",
+          "Gulabjamun"
+        ]
+      },
+      "Sorbet - Vegan": [
+        "Jamun",
+        "Strawberry",
+        "Mulberry",
+        "Guava",
+        "Kiwi",
+        "Mango"
+      ],
+      "Special Kulfi": {
+        "Dryfruit Overload": [
+          "Walnut Date",
+          "Kaju Anjeer",
+          "Kesar Pista",
+          "Badam Pista",
+          "Afghani Dryfruit",
+          "Anjeer",
+          "Kaju Katri"
+        ],
+        "Party Special": [
+          "Plain Chocolate",
+          "Chocolate Cadbury",
+          "Cashew Chocolate",
+          "KitKat Cadbury",
+          "Dairymilk Cadbury",
+          "Cookies n Cream",
+          "Strawberry"
+        ],
+        "Mithai Fusion": [
+          "Mava Malai",
+          "Kaju Katli",
+          "Rasgulla",
+          "Motichoor",
+          "Gulabjamun"
+        ],
+        "Crunchy Kulfis": [
+          "Kaju Roll",
+          "Almond Pistachio Roll",
+          "Oreo Roll",
+          "KitKat Roll",
+          "Mango Cashew Roll",
+          "Rose Cashew Roll",
+          "Red Velvet Roll",
+          "Black Forest Roll",
+          "Pistachio Roll"
+        ]
+      }
+    },
+    "Exotic Desserts": {
+      "Waffle Corner": {
+        "Waffles": [
+          "Classic American Waffles"
+        ],
+        "Spreads": [
+          "Classic Belgian",
+          "White Chocolate",
+          "Nutella"
+        ],
+        "Toppings": [
+          "Sprinkles",
+          "Chocolate Chips"
+        ]
+      },
+      "Paan Corner": {
+        "Regular": [
+          "Banarasi Paan"
+        ],
+        "Banrasi Paan": [
+          "Saada",
+          "Meetha",
+          "Kalkatti",
+          "Kalkatti Meetha"
+        ],
+        "Flavored Paan": [
+          "Chocolate",
+          "Oreo"
+        ]
+      },
+      "Cakes & Pastries": {
+        "Classic Cakes": [
+          "Pineapple",
+          "Strawberry",
+          "Mango",
+          "Black Forrest",
+          "Mixed Fruit",
+          "Kiwi",
+          "Orange",
+          "Cupcakes"
+        ],
+        "Pastries": [
+          "Red Velvet",
+          "Chocolate Truffle",
+          "Hazelnut Truffle",
+          "Tiramisu"
+        ],
+        "Cheesecakes": [
+          "Blueberry",
+          "Mango",
+          "Oreo",
+          "Strawberry",
+          "Biscoff Cheesecake"
+        ]
+      }
     }
   },
   "extra_charges": {
