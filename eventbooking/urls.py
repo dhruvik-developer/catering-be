@@ -9,4 +9,9 @@ urlpatterns = [
     path("event-item-configs/<int:pk>/", EventItemConfigDetailViewSet.as_view()),
     path("ingredient-vendor-assignments/", IngredientVendorAssignmentViewSet.as_view()),
     path("ingredient-vendor-assignments/<int:pk>/", IngredientVendorAssignmentDetailViewSet.as_view()),
+    path(
+        "event-sessions/<int:session_id>/checklist/",
+        SessionChecklistView.as_view(),
+        name="session-checklist",
+    ),
 ]

@@ -171,3 +171,60 @@ class IngredientVendorAssignment(models.Model):
     def __str__(self):
         return f"{self.ingredient.name} -> {self.vendor.name} ({self.source_type})"
 
+
+
+class SessionChecklistTick(models.Model):
+    """One row per (session, item_key, action) checkbox the user has touched on
+    the per-session checklist screen. Lets the mobile / web checklist show the
+    previous tick state when reopened and gives admins a verification trail
+    (`ticked_by` + `ticked_at`).
+
+    The `item_key` is a stable client-built string that identifies the row
+    within the session payload — e.g. `menu:Roti::Butter Roti`,
+    `ingredient:Tameta`, `vendor:reerrree`. It's intentionally NOT a database
+    FK because the rows are derived from JSON fields (`selected_items`,
+    `ingredients_required`, `assigned_vendors`, `outsourced_items`,
+    `ground_management`) which don't have stable per-row IDs.
+    """
+
+    ACTION_PREPARED = "prepared"
+    ACTION_SERVED = "served"
+    ACTION_RECEIVED = "received"
+    ACTION_DELIVERED = "delivered"
+    ACTION_AVAILABLE = "available"
+    ACTION_CHOICES = (
+        (ACTION_PREPARED, "Prepared"),
+        (ACTION_SERVED, "Served"),
+        (ACTION_RECEIVED, "Received"),
+        (ACTION_DELIVERED, "Delivered"),
+        (ACTION_AVAILABLE, "Available"),
+    )
+
+    session = models.ForeignKey(
+        EventSession,
+        on_delete=models.CASCADE,
+        related_name="checklist_ticks",
+    )
+    item_key = models.CharField(max_length=255)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    is_done = models.BooleanField(default=False)
+    ticked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="session_checklist_ticks",
+    )
+    ticked_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("session", "item_key", "action")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("session", "item_key", "action"),
+                name="uniq_session_checklist_tick",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.session_id}/{self.item_key}/{self.action}={self.is_done}"

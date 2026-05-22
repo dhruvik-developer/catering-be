@@ -370,3 +370,24 @@ class EventBookingSerializer(serializers.ModelSerializer):
                         "notes": notes,
                     },
                 )
+
+
+from .models import SessionChecklistTick
+
+
+class SessionChecklistTickSerializer(serializers.ModelSerializer):
+    ticked_by_username = serializers.CharField(
+        source="ticked_by.username", read_only=True
+    )
+
+    class Meta:
+        model = SessionChecklistTick
+        fields = (
+            "id",
+            "item_key",
+            "action",
+            "is_done",
+            "ticked_by_username",
+            "ticked_at",
+        )
+        read_only_fields = ("id", "ticked_by_username", "ticked_at")

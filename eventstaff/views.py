@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from eventbooking.models import EventBooking
 from radha.Utils.permissions import IsAdminUserOrReadOnly
@@ -606,4 +607,207 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
                 "message": "Event staff summary fetched successfully",
                 "data": data,
             }
+        )
+
+
+class MyEventSummaryView(APIView):
+    """`GET /api/me/event-summary/`
+
+    Returns the logged-in staff member's own at-a-glance financial summary:
+    how many events they're attached to, their projected earnings, what's
+    been paid out, what's still owed — plus the most recent assignments so
+    they can scan the timeline without leaving the screen.
+
+    Vendor user support is intentionally **not** here yet (vendors are
+    settled via Payment / outsourced invoices, not EventStaffAssignment) —
+    that's a separate endpoint when we tackle vendor payments.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Find the staff profile linked to this user, if any. Same lookup the
+        # rest of the staff-portal endpoints use.
+        staff = Staff.objects.filter(user_account=user).first()
+
+        # Only count non-declined assignments — declined work isn't going to
+        # be paid out so it shouldn't pollute earnings totals.
+        qs = (
+            EventStaffAssignment.objects.filter(staff__user_account=user)
+            .exclude(response_status=EventStaffAssignment.RESPONSE_DECLINED)
+            .select_related(
+                "staff",
+                "session",
+                "session__booking",
+                "role_at_event",
+                "staff__role",
+            )
+        )
+
+        totals = qs.aggregate(
+            events_worked=Count("id"),
+            total_earning=Sum("total_amount"),
+            total_paid=Sum("paid_amount"),
+            total_pending=Sum("remaining_amount"),
+        )
+
+        def _money(value):
+            return str(value if value is not None else Decimal("0.00"))
+
+        recent_assignments = []
+        for assignment in qs.order_by("-session__event_date")[:20]:
+            session = assignment.session
+            booking = session.booking if session else None
+            role_name = (
+                assignment.role_at_event.name
+                if assignment.role_at_event
+                else (assignment.staff.role.name if assignment.staff.role else "")
+            )
+            recent_assignments.append(
+                {
+                    "assignment_id": assignment.id,
+                    "booking_id": booking.id if booking else None,
+                    "booking_name": booking.name if booking else "",
+                    "session_id": session.id if session else None,
+                    "session_date": (
+                        session.event_date.strftime("%d-%m-%Y")
+                        if session and session.event_date
+                        else ""
+                    ),
+                    "session_time": session.event_time if session else "",
+                    "role": role_name,
+                    "staff_type": assignment.staff.staff_type,
+                    "total_amount": _money(assignment.total_amount),
+                    "paid_amount": _money(assignment.paid_amount),
+                    "remaining_amount": _money(assignment.remaining_amount),
+                    "payment_status": assignment.payment_status,
+                    "response_status": assignment.response_status,
+                }
+            )
+
+        # Fixed staff are salaried (their per-assignment total is always 0),
+        # so the event-level totals understate what they're actually owed.
+        # Fold in their FixedStaffSalaryPayment ledger so they see the real
+        # numbers next to the per-event ones.
+        #
+        # This block mirrors the admin's `staff/<pk>/fixed-payment-summary/`
+        # view but trimmed to what the mobile screen renders — joining date,
+        # months-equivalent maths, pending withdrawals, and the salary payment
+        # records list. We compute the same values inline so the staff portal
+        # doesn't need the admin-gated `staff.view_summary` permission.
+        fixed_salary_summary = None
+        if staff and staff.staff_type == "Fixed":
+            salary_payments_qs = FixedStaffSalaryPayment.objects.filter(
+                staff=staff
+            ).order_by("-start_date", "-created_at")
+            salary_totals = salary_payments_qs.aggregate(
+                lifetime_total=Sum("total_amount"),
+                lifetime_paid=Sum("paid_amount"),
+                lifetime_pending=Sum("remaining_amount"),
+            )
+            lifetime_paid = salary_totals.get("lifetime_paid") or Decimal("0.00")
+            monthly_salary = staff.fixed_salary or Decimal("0.00")
+
+            # How many months of salary has actually been paid out, fractional.
+            paid_months_equivalent = Decimal("0.00")
+            if monthly_salary > 0:
+                paid_months_equivalent = (
+                    lifetime_paid / monthly_salary
+                ).quantize(Decimal("0.01"))
+
+            # Whole-month tenure since joining; subtract 1 if today is before
+            # the joining-day-of-month so partial months don't get counted as
+            # "owed" prematurely. Matches the admin view's calc.
+            tenure_months = 0
+            if staff.joining_date:
+                today = timezone.now().date()
+                tenure_months = (today.year - staff.joining_date.year) * 12 + (
+                    today.month - staff.joining_date.month
+                )
+                if today.day < staff.joining_date.day:
+                    tenure_months -= 1
+                if tenure_months < 0:
+                    tenure_months = 0
+
+            pending_withdrawals = (
+                staff.withdrawals.filter(is_adjusted=False).aggregate(
+                    total=Sum("amount")
+                )["total"]
+                or Decimal("0.00")
+            )
+
+            salary_payment_records = [
+                {
+                    "id": p.id,
+                    "period_label": p.covered_month_label,
+                    "start_date": (
+                        p.start_date.strftime("%d-%m-%Y") if p.start_date else ""
+                    ),
+                    "end_date": (
+                        p.end_date.strftime("%d-%m-%Y") if p.end_date else ""
+                    ),
+                    "months_count": str(p.months_count or 0),
+                    "total_amount": _money(p.total_amount),
+                    "paid_amount": _money(p.paid_amount),
+                    "remaining_amount": _money(p.remaining_amount),
+                    "withdrawal_deduction": _money(p.withdrawal_deduction),
+                    "payment_status": p.payment_status,
+                    "payment_date": (
+                        p.payment_date.strftime("%d-%m-%Y")
+                        if p.payment_date
+                        else ""
+                    ),
+                }
+                for p in salary_payments_qs
+            ]
+
+            fixed_salary_summary = {
+                "monthly_salary": _money(monthly_salary),
+                "lifetime_total": _money(salary_totals.get("lifetime_total")),
+                "lifetime_paid": _money(lifetime_paid),
+                "lifetime_pending": _money(salary_totals.get("lifetime_pending")),
+                "joining_date": (
+                    staff.joining_date.strftime("%Y-%m-%d")
+                    if staff.joining_date
+                    else None
+                ),
+                "tenure_months": tenure_months,
+                "paid_months_equivalent": str(paid_months_equivalent),
+                # Pending months = months elapsed minus what's been paid for —
+                # never negative (e.g. if admin paid forward).
+                "pending_months": str(
+                    max(
+                        Decimal(str(tenure_months)) - paid_months_equivalent,
+                        Decimal("0.00"),
+                    ).quantize(Decimal("0.01"))
+                ),
+                "pending_withdrawals": _money(pending_withdrawals),
+                "salary_payment_records": salary_payment_records,
+            }
+
+        return Response(
+            {
+                "status": True,
+                "message": "Summary fetched.",
+                "data": {
+                    "user_type": "staff" if staff else "unknown",
+                    "staff_name": (
+                        staff.name
+                        if staff
+                        else (user.get_full_name() or user.username)
+                    ),
+                    "staff_type": staff.staff_type if staff else None,
+                    "totals": {
+                        "events_worked": totals.get("events_worked") or 0,
+                        "total_earning": _money(totals.get("total_earning")),
+                        "total_paid": _money(totals.get("total_paid")),
+                        "total_pending": _money(totals.get("total_pending")),
+                    },
+                    "recent_assignments": recent_assignments,
+                    "fixed_salary_summary": fixed_salary_summary,
+                },
+            },
+            status=status.HTTP_200_OK,
         )

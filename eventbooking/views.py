@@ -19,7 +19,6 @@ from user.branching import (
 from django.db.models import F, Q
 import difflib
 
-
 logger = logging.getLogger(__name__)
 
 DEFAULT_ESTIMATED_PERSONS = 100
@@ -157,8 +156,7 @@ def _normalize_selected_items(selected_items):
     for key, value in selected_items.items():
         if isinstance(value, list):
             normalized[key] = [
-                {"name": item} if isinstance(item, str) else item
-                for item in value
+                {"name": item} if isinstance(item, str) else item for item in value
             ]
         else:
             normalized[key] = value
@@ -194,14 +192,16 @@ def calculate_ingredients_required(session_obj):
     from .models import EventItemConfig
 
     item_configs = {
-        config.item_name.strip().lower(): config 
-        for config in EventItemConfig.objects.filter(session=session_obj).select_related("vendor")
+        config.item_name.strip().lower(): config
+        for config in EventItemConfig.objects.filter(
+            session=session_obj
+        ).select_related("vendor")
     }
 
     stored_outsourced_items = session_obj.outsourced_items or []
     stored_outsourced_map = {
-        item.get("item_name"): item.get("vendor") 
-        for item in stored_outsourced_items 
+        item.get("item_name"): item.get("vendor")
+        for item in stored_outsourced_items
         if isinstance(item, dict) and item.get("item_name")
     }
 
@@ -218,15 +218,15 @@ def calculate_ingredients_required(session_obj):
                 qty = float(Decimal(str(config.quantity)) * persons)
             elif config.quantity:
                 qty = float(Decimal(str(config.quantity)))
-                
+
             vendor_info = None
             if config.vendor:
                 vendor_info = {
                     "id": config.vendor.id,
                     "name": config.vendor.name,
-                    "mobile_no": config.vendor.mobile_no
+                    "mobile_no": config.vendor.mobile_no,
                 }
-            
+
             # Merge with custom fields stored in JSON
             saved_vendor = stored_outsourced_map.get(dish)
             if saved_vendor and isinstance(saved_vendor, dict):
@@ -234,15 +234,21 @@ def calculate_ingredients_required(session_obj):
                     vendor_info = saved_vendor
                 else:
                     for k, v in saved_vendor.items():
-                        if k not in vendor_info or not vendor_info[k] or k not in ["id", "name"]:
+                        if (
+                            k not in vendor_info
+                            or not vendor_info[k]
+                            or k not in ["id", "name"]
+                        ):
                             vendor_info[k] = v
 
-            outsourced_items.append({
-                "item_name": dish,
-                "quantity": qty,
-                "unit": unit,
-                "vendor": vendor_info
-            })
+            outsourced_items.append(
+                {
+                    "item_name": dish,
+                    "quantity": qty,
+                    "unit": unit,
+                    "vendor": vendor_info,
+                }
+            )
         else:
             in_house_dish_names.append(dish)
 
@@ -261,10 +267,9 @@ def calculate_ingredients_required(session_obj):
         item__branch_profile__isnull=True
     )
 
-    recipe_qs = (
-        RecipeIngredient.objects.select_related("item", "ingredient__category")
-        .filter(branch_filter)
-    )
+    recipe_qs = RecipeIngredient.objects.select_related(
+        "item", "ingredient__category"
+    ).filter(branch_filter)
 
     matched_dishes = set()
     for ri in recipe_qs:
@@ -279,10 +284,16 @@ def calculate_ingredients_required(session_obj):
         qty = float(ri.quantity or 0)
         unit = ri.unit or ""
         base_quantity, base_unit = normalize_quantity_unit(qty, unit)
-        person_count = ri.person_count if ri.person_count and ri.person_count > 0 else DEFAULT_ESTIMATED_PERSONS
+        person_count = (
+            ri.person_count
+            if ri.person_count and ri.person_count > 0
+            else DEFAULT_ESTIMATED_PERSONS
+        )
         scale_factor = Decimal(persons) / Decimal(person_count)
 
-        total_ingredients[ingredient_name]["value"] += Decimal(str(base_quantity)) * scale_factor
+        total_ingredients[ingredient_name]["value"] += (
+            Decimal(str(base_quantity)) * scale_factor
+        )
         if base_unit:
             total_ingredients[ingredient_name]["unit"] = base_unit
         total_ingredients[ingredient_name]["used_in"].add(item_name)
@@ -311,6 +322,7 @@ def calculate_ingredients_required(session_obj):
         )
 
     from ListOfIngridients.models import IngridientsItem
+
     # To support spelling variations like Tomato/Tomata, load all items and fallback via fuzzy matching.
     # Include NULL-branch (tenant-global) ingredient items too, so recipes that
     # reference globally-defined ingredients still resolve a category instead
@@ -318,9 +330,12 @@ def calculate_ingredients_required(session_obj):
     items_with_categories = IngridientsItem.objects.select_related("category").filter(
         Q(branch_profile=booking_branch) | Q(branch_profile__isnull=True)
     )
-    category_map = {item.name.strip().lower(): item.category.name for item in items_with_categories}
+    category_map = {
+        item.name.strip().lower(): item.category.name for item in items_with_categories
+    }
 
     from stockmanagement.models import StokeItem
+
     # To support spelling variations, load all stock items and then fuzzy-search names.
     # Same NULL-branch tolerance as the ingredient lookup above — without it,
     # stock for tenant-global items never gets attached to recipe ingredients.
@@ -349,7 +364,9 @@ def calculate_ingredients_required(session_obj):
     # Load relational vendor assignments instead of the JSON blob
     ingredient_vendor_assignments = {
         assign.ingredient.name.strip().lower(): assign
-        for assign in IngredientVendorAssignment.objects.filter(session=session_obj).select_related("vendor", "ingredient")
+        for assign in IngredientVendorAssignment.objects.filter(
+            session=session_obj
+        ).select_related("vendor", "ingredient")
     }
 
     final_ingredients = {}
@@ -371,15 +388,22 @@ def calculate_ingredients_required(session_obj):
         if stock_info is None:
             stock_info = fuzzy_lookup(ingredient, stock_map, cutoff=0.6) or {}
 
-        vendor_assignment = ingredient_vendor_assignments.get(ingredient.strip().lower())
+        vendor_assignment = ingredient_vendor_assignments.get(
+            ingredient.strip().lower()
+        )
         if not vendor_assignment:
             # Fuzzy match keys just in case
             keys = list(ingredient_vendor_assignments.keys())
-            close = difflib.get_close_matches(ingredient.strip().lower(), [k.strip().lower() for k in keys], n=1, cutoff=0.6)
+            close = difflib.get_close_matches(
+                ingredient.strip().lower(),
+                [k.strip().lower() for k in keys],
+                n=1,
+                cutoff=0.6,
+            )
             if close:
                 matched_key = keys[[k.strip().lower() for k in keys].index(close[0])]
                 vendor_assignment = ingredient_vendor_assignments.get(matched_key)
-        
+
         vendor_info = _vendor_info_from_assignment(vendor_assignment)
 
         final_ingredients[ingredient] = {
@@ -452,9 +476,7 @@ def calculate_ingredients_required(session_obj):
                 category = category_map.get(name.strip().lower(), "") or ""
 
             stock_info = stock_map.get(name.strip().lower()) or {}
-            vendor_assignment = ingredient_vendor_assignments.get(
-                name.strip().lower()
-            )
+            vendor_assignment = ingredient_vendor_assignments.get(name.strip().lower())
             vendor_info = _vendor_info_from_assignment(vendor_assignment)
 
             # Avoid clobbering a global-recipe entry if the user happened to
@@ -507,7 +529,11 @@ class EventBookingViewSet(generics.GenericAPIView):
             # Calculate waiter_service_amount for the session.
             # waiter_service can arrive as a single dict {} or a list [{}] — normalise to list.
             raw_waiter = session.get("waiter_service", [])
-            waiter_services = [raw_waiter] if isinstance(raw_waiter, dict) and raw_waiter else (raw_waiter if isinstance(raw_waiter, list) else [])
+            waiter_services = (
+                [raw_waiter]
+                if isinstance(raw_waiter, dict) and raw_waiter
+                else (raw_waiter if isinstance(raw_waiter, list) else [])
+            )
             waiter_amount = sum(_safe_amount(s.get("amount")) for s in waiter_services)
             session["waiter_service_amount"] = str(waiter_amount)
 
@@ -538,7 +564,8 @@ class EventBookingViewSet(generics.GenericAPIView):
         EventBooking.cancel_expired_pending_bookings()
         requested_session_id = _session_id_from_query(request)
         queryset = (
-            self.get_queryset().prefetch_related(
+            self.get_queryset()
+            .prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -555,7 +582,9 @@ class EventBookingViewSet(generics.GenericAPIView):
                     service.get("extra") for service in session.extra_service
                 ):
                     session.extra_service_amount = str(
-                        sum(_safe_amount(s.get("amount")) for s in session.extra_service)
+                        sum(
+                            _safe_amount(s.get("amount")) for s in session.extra_service
+                        )
                     )
                     changed = True
 
@@ -565,7 +594,11 @@ class EventBookingViewSet(generics.GenericAPIView):
                     and session.waiter_service
                 ):
                     raw_ws = session.waiter_service
-                    ws_list = [raw_ws] if isinstance(raw_ws, dict) and raw_ws else (raw_ws if isinstance(raw_ws, list) else [])
+                    ws_list = (
+                        [raw_ws]
+                        if isinstance(raw_ws, dict) and raw_ws
+                        else (raw_ws if isinstance(raw_ws, list) else [])
+                    )
                     session.waiter_service_amount = str(
                         sum(_safe_amount(s.get("amount")) for s in ws_list)
                     )
@@ -589,12 +622,16 @@ class EventBookingViewSet(generics.GenericAPIView):
                     if str(session_data.get("id")) == str(requested_session_id)
                 ]
 
-            sessions_by_id = {session.id: session for session in event_obj.sessions.all()}
+            sessions_by_id = {
+                session.id: session for session in event_obj.sessions.all()
+            }
             for session_data in event_data.get("sessions", []):
                 session_obj = sessions_by_id.get(session_data.get("id"))
                 if not session_obj:
                     continue
-                final_ingredients, outsourced_items = calculate_ingredients_required(session_obj)
+                final_ingredients, outsourced_items = calculate_ingredients_required(
+                    session_obj
+                )
                 session_data["ingredients_required"] = final_ingredients
                 session_data["outsourced_items"] = outsourced_items
 
@@ -634,14 +671,20 @@ class EventBookingGetViewSet(generics.GenericAPIView):
                         )
 
                     raw_ws = session.get("waiter_service", [])
-                    ws_list = [raw_ws] if isinstance(raw_ws, dict) and raw_ws else (raw_ws if isinstance(raw_ws, list) else [])
+                    ws_list = (
+                        [raw_ws]
+                        if isinstance(raw_ws, dict) and raw_ws
+                        else (raw_ws if isinstance(raw_ws, list) else [])
+                    )
                     if ws_list:
                         session["waiter_service_amount"] = str(
                             sum(_safe_amount(s.get("amount")) for s in ws_list)
                         )
 
                     if selected_items and isinstance(selected_items, dict):
-                        session["selected_items"] = _normalize_selected_items(selected_items)
+                        session["selected_items"] = _normalize_selected_items(
+                            selected_items
+                        )
 
                 request.data["sessions"] = sessions
 
@@ -681,11 +724,15 @@ class EventBookingGetViewSet(generics.GenericAPIView):
         EventBooking.cancel_expired_pending_bookings()
         requested_session_id = _session_id_from_query(request)
         try:
-            eventbooking = self.get_queryset().prefetch_related(
-                "sessions__staff_assignments__staff__role",
-                "sessions__staff_assignments__role_at_event",
-                "sessions__ground_requirements__ground_item__category",
-            ).get(pk=pk)
+            eventbooking = (
+                self.get_queryset()
+                .prefetch_related(
+                    "sessions__staff_assignments__staff__role",
+                    "sessions__staff_assignments__role_at_event",
+                    "sessions__ground_requirements__ground_item__category",
+                )
+                .get(pk=pk)
+            )
             # Context needed so the nested EventSessionSerializer can populate
             # `is_mine` on each assignment from `request.user`.
             serializer = EventBookingSerializer(
@@ -709,16 +756,21 @@ class EventBookingGetViewSet(generics.GenericAPIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-            sessions_by_id = {session.id: session for session in eventbooking.sessions.all()}
+            sessions_by_id = {
+                session.id: session for session in eventbooking.sessions.all()
+            }
             for session_dict in response_data.get("sessions", []):
                 session_obj = sessions_by_id.get(session_dict.get("id"))
                 if not session_obj:
                     continue
-                final_ingredients, outsourced_items = calculate_ingredients_required(session_obj)
+                final_ingredients, outsourced_items = calculate_ingredients_required(
+                    session_obj
+                )
                 session_dict["ingredients_required"] = final_ingredients
                 session_dict["outsourced_items"] = outsourced_items
 
-            return Response(                {
+            return Response(
+                {
                     "status": True,
                     "message": "EventBooking retrieved successfully",
                     "data": response_data,
@@ -774,7 +826,8 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
     def get(self, request):
         EventBooking.cancel_expired_pending_bookings()
         queryset = (
-            self.get_queryset().prefetch_related(
+            self.get_queryset()
+            .prefetch_related(
                 "sessions__staff_assignments__staff__role",
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
@@ -798,12 +851,13 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
 from .serializers import EventItemConfigSerializer, IngredientVendorAssignmentSerializer
 from .models import EventItemConfig, IngredientVendorAssignment
 
+
 class EventItemConfigViewSet(generics.ListCreateAPIView):
     queryset = EventItemConfig.objects.all()
     serializer_class = EventItemConfigSerializer
     permission_classes = [IsAdminUserOrReadOnly]
     permission_resource = "event_item_configs"
-    
+
     def get_queryset(self):
         qs = super().get_queryset()
         qs = filter_branch_queryset(
@@ -827,22 +881,22 @@ class EventItemConfigViewSet(generics.ListCreateAPIView):
             session = EventSession.objects.select_related("booking").get(id=session_id)
             ensure_object_in_user_branch(session.booking, request)
         item_name = payload.get("item_name")
-        
+
         if session_id and item_name:
             existing = EventItemConfig.objects.filter(
-                session_id=session_id,
-                item_name__iexact=item_name
+                session_id=session_id, item_name__iexact=item_name
             ).first()
             if existing:
                 serializer = self.get_serializer(existing, data=payload, partial=True)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
                 return Response(serializer.data)
-        
+
         serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 class EventItemConfigDetailViewSet(generics.RetrieveUpdateDestroyAPIView):
     queryset = EventItemConfig.objects.all()
@@ -889,7 +943,7 @@ class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
                 "booking", "booking__branch_profile"
             ).get(id=session_id)
             ensure_object_in_user_branch(session.booking, request)
-        
+
         # Look up ingredient by name to get its ID
         if ingredient_name:
             from ListOfIngridients.models import IngridientsCategory, IngridientsItem
@@ -964,21 +1018,22 @@ class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
                         )
 
             if not ingredient_obj:
-                return Response({"error": f"Ingredient '{ingredient_name}' not found"}, status=400)
+                return Response(
+                    {"error": f"Ingredient '{ingredient_name}' not found"}, status=400
+                )
             payload["ingredient"] = ingredient_obj.id
 
         ingredient_id = payload.get("ingredient")
         if ingredient_id and session_id:
             existing = IngredientVendorAssignment.objects.filter(
-                ingredient_id=ingredient_id,
-                session_id=session_id
+                ingredient_id=ingredient_id, session_id=session_id
             ).first()
             if existing:
                 serializer = self.get_serializer(existing, data=payload, partial=True)
                 serializer.is_valid(raise_exception=True)
                 serializer.save(source_type="manual")
                 return Response(serializer.data)
-        
+
         serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
         serializer.save(source_type="manual")
@@ -1000,3 +1055,107 @@ class IngredientVendorAssignmentDetailViewSet(generics.RetrieveUpdateDestroyAPIV
 
     def perform_update(self, serializer):
         serializer.save(source_type="manual")
+
+
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from eventbooking.models import EventSession, SessionChecklistTick
+from eventbooking.serializers import SessionChecklistTickSerializer
+
+
+def _user_can_access_session_checklist(user, session):
+    """Allowed callers: admins, OR staff with at least one non-declined
+    assignment on the session. Vendors aren't covered yet — when vendor
+    accept/decline lands, mirror the same check here."""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+        return True
+    return (
+        session.staff_assignments.filter(
+            staff__user_account=user,
+        )
+        .exclude(response_status="declined")
+        .exists()
+    )
+
+
+class SessionChecklistView(APIView):
+    """`/event-sessions/<session_id>/checklist/`
+
+    GET  → list of every checklist tick for the session (staff or admin).
+    POST → upsert a single tick. Body: `{ item_key, action, is_done }`.
+           One row per `(session, item_key, action)` triplet — the second
+           POST on the same triplet flips is_done and refreshes ticked_by /
+           ticked_at instead of creating a duplicate.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    _ALLOWED_ACTIONS = {
+        SessionChecklistTick.ACTION_PREPARED,
+        SessionChecklistTick.ACTION_SERVED,
+        SessionChecklistTick.ACTION_RECEIVED,
+        SessionChecklistTick.ACTION_DELIVERED,
+        SessionChecklistTick.ACTION_AVAILABLE,
+    }
+
+    def _forbidden(self):
+        return Response(
+            {"status": False, "message": "You can't view this checklist.", "data": []},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def get(self, request, session_id):
+        session = get_object_or_404(EventSession, pk=session_id)
+        if not _user_can_access_session_checklist(request.user, session):
+            return self._forbidden()
+        ticks = session.checklist_ticks.select_related("ticked_by").all()
+        return Response(
+            {
+                "status": True,
+                "message": "Checklist ticks fetched.",
+                "data": SessionChecklistTickSerializer(ticks, many=True).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request, session_id):
+        session = get_object_or_404(EventSession, pk=session_id)
+        if not _user_can_access_session_checklist(request.user, session):
+            return self._forbidden()
+
+        item_key = str(request.data.get("item_key", "")).strip()
+        action_value = str(request.data.get("action", "")).strip().lower()
+        is_done = bool(request.data.get("is_done", False))
+
+        if not item_key:
+            return Response(
+                {"status": False, "message": "`item_key` is required.", "data": {}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if action_value not in self._ALLOWED_ACTIONS:
+            return Response(
+                {
+                    "status": False,
+                    "message": f"`action` must be one of {sorted(self._ALLOWED_ACTIONS)}.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tick, _created = SessionChecklistTick.objects.update_or_create(
+            session=session,
+            item_key=item_key,
+            action=action_value,
+            defaults={"is_done": is_done, "ticked_by": request.user},
+        )
+        return Response(
+            {
+                "status": True,
+                "message": "Checklist tick saved.",
+                "data": SessionChecklistTickSerializer(tick).data,
+            },
+            status=status.HTTP_200_OK,
+        )

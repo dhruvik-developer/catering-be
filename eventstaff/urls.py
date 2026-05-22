@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     EventStaffAssignmentViewSet,
     FixedStaffSalaryPaymentViewSet,
+    MyEventSummaryView,
     StaffViewSet,
     StaffRoleViewSet,
     WaiterTypeViewSet,
@@ -9,6 +10,12 @@ from .views import (
 )
 
 urlpatterns = [
+    # Per-user dashboard summary (staff portal — earnings + recent events)
+    path(
+        "me/event-summary/",
+        MyEventSummaryView.as_view(),
+        name="my-event-summary",
+    ),
     # Staff Role URLs
     path(
         "roles/",
