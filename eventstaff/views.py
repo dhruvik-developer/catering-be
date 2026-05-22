@@ -7,6 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from eventbooking.models import EventBooking
@@ -432,10 +433,12 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["post"],
         url_path="respond",
-        # Anyone authenticated can call this; we enforce that only the
-        # assigned staff (or an admin) can act on the row inside the body of
-        # the action.
-        permission_classes=[IsAdminUserOrReadOnly],
+        # The ViewSet-level `IsAdminUserOrReadOnly` would block non-admin
+        # staff from POSTing — but the whole point of /respond/ is that the
+        # **assigned staff member** (who is *not* an admin) accepts or
+        # declines. We loosen it to just `IsAuthenticated` here and enforce
+        # the real "you can only act on your own row" rule inside the action.
+        permission_classes=[IsAuthenticated],
     )
     @transaction.atomic
     def respond(self, request, pk=None):
@@ -446,8 +449,18 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
         Body shape:
             { "response": "accepted" | "declined", "reason": "optional text" }
         """
+        # Look the assignment up directly — NOT via `self.get_queryset()` which
+        # applies `filter_branch_queryset` and returns empty for any user
+        # without a `branch_profile_id` (i.e. most regular staff). The
+        # authorization model for this action is row-level ("you own this
+        # assignment OR you're an admin"), checked just below, so we don't
+        # need the branch scope here.
         try:
-            assignment = self.get_queryset().get(pk=pk)
+            assignment = (
+                EventStaffAssignment.objects
+                .select_related("staff", "staff__user_account")
+                .get(pk=pk)
+            )
         except EventStaffAssignment.DoesNotExist:
             return Response(
                 {"status": False, "message": "Assignment not found.", "data": {}},
@@ -525,19 +538,37 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="event-summary")
     def event_summary(self, request):
+        # Declined assignments aren't actually working the event, so they
+        # shouldn't inflate the labour/waiter counts or any of the projected
+        # amounts. We still want the event itself to appear in the summary
+        # (the admin needs to see the row to know to reassign), so the
+        # exclusion only applies to the per-field aggregates — not to the
+        # `isnull=False` row filter.
+        not_declined = ~Q(sessions__staff_assignments__response_status="declined")
         events = (
             filter_branch_queryset(EventBooking.objects, request).annotate(
                 total_labor=Count(
                     "sessions__staff_assignments",
-                    filter=Q(sessions__staff_assignments__role_at_event__name="Labor"),
+                    filter=Q(sessions__staff_assignments__role_at_event__name="Labor")
+                    & not_declined,
                 ),
                 total_waiter=Count(
                     "sessions__staff_assignments",
-                    filter=Q(sessions__staff_assignments__role_at_event__name="Waiter"),
+                    filter=Q(sessions__staff_assignments__role_at_event__name="Waiter")
+                    & not_declined,
                 ),
-                total_amount=Sum("sessions__staff_assignments__total_amount"),
-                total_paid=Sum("sessions__staff_assignments__paid_amount"),
-                total_pending=Sum("sessions__staff_assignments__remaining_amount"),
+                total_amount=Sum(
+                    "sessions__staff_assignments__total_amount",
+                    filter=not_declined,
+                ),
+                total_paid=Sum(
+                    "sessions__staff_assignments__paid_amount",
+                    filter=not_declined,
+                ),
+                total_pending=Sum(
+                    "sessions__staff_assignments__remaining_amount",
+                    filter=not_declined,
+                ),
             )
             .filter(sessions__staff_assignments__isnull=False)
             .distinct()

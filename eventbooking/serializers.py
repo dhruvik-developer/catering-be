@@ -91,6 +91,47 @@ class EventSessionSerializer(serializers.ModelSerializer):
         data["ground_management"] = self.get_ground_management(instance)
         return data
 
+    # Mirrors `_ASSIGNED_TO_ME_TRUTHY` in eventbooking/views.py — duplicated
+    # here so the serializer can decide whether the request is the "assignee"
+    # view (mobile / staff portal) without importing from views.
+    _ASSIGNEE_VIEW_VALUES = frozenset({"1", "true", "yes", "on", "me"})
+
+    def _is_assignee_view(self, request):
+        if request is None:
+            return False
+        raw = request.query_params.get("assigned_to_me", "")
+        return str(raw).strip().lower() in self._ASSIGNEE_VIEW_VALUES
+
+    def _should_hide_from_assignee(self, assignment, request):
+        """True when this row should disappear from the staff-portal view.
+
+        Hide rules (only when the request carries `assigned_to_me=true`):
+          1. Anything that doesn't belong to the viewer at all — they're not
+             interested in other staff's assignments on the same booking.
+          2. Their own declined rows — once they say no, the row drops out of
+             their UI (admins still see it with the reason for reassignment).
+
+        Admins (no `assigned_to_me` flag on the request) get everything as
+        before."""
+        if not self._is_assignee_view(request):
+            return False
+
+        viewer_id = (
+            request.user.id
+            if getattr(request.user, "is_authenticated", False)
+            else None
+        )
+        staff_user_id = getattr(assignment.staff, "user_account_id", None)
+        is_mine = bool(staff_user_id) and staff_user_id == viewer_id
+
+        # Rule 1: someone else's assignment — hide.
+        if not is_mine:
+            return True
+        # Rule 2: mine but declined — hide.
+        if assignment.response_status == "declined":
+            return True
+        return False
+
     def _assignment_payload(self, assignment, role_name):
         """Shared shape for managers_assigned / summoned_staff_details. Adds
         the staff response workflow fields (status, decline reason, history)
@@ -134,11 +175,14 @@ class EventSessionSerializer(serializers.ModelSerializer):
         }
 
     def get_managers_assigned(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
         managers = []
         assignments = obj.staff_assignments.select_related(
             "staff", "staff__user_account", "role_at_event", "staff__role"
         ).prefetch_related("response_history__responded_by")
         for assignment in assignments:
+            if self._should_hide_from_assignee(assignment, request):
+                continue
             role_name = (
                 assignment.role_at_event.name
                 if assignment.role_at_event
@@ -149,11 +193,14 @@ class EventSessionSerializer(serializers.ModelSerializer):
         return managers
 
     def get_summoned_staff_details(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
         summoned_staff = []
         assignments = obj.staff_assignments.select_related(
             "staff", "staff__user_account", "role_at_event", "staff__role"
         ).prefetch_related("response_history__responded_by")
         for assignment in assignments:
+            if self._should_hide_from_assignee(assignment, request):
+                continue
             role_name = (
                 assignment.role_at_event.name
                 if assignment.role_at_event

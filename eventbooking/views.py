@@ -45,8 +45,16 @@ def _restrict_to_assigned_staff(queryset, request):
     user = request.user
     if not getattr(user, "is_authenticated", False):
         return queryset.none()
+    # Both conditions sit in the same .filter() call on purpose — Django
+    # joins them onto the SAME staff_assignment row, so the result is
+    # "bookings where there is at least one assignment that is BOTH mine AND
+    # not declined". Once the staff member declines every assignment on a
+    # booking, it drops out of their portal entirely — admins (no
+    # assigned_to_me flag) still see it with the decline reason so they know
+    # to reassign.
     return queryset.filter(
-        sessions__staff_assignments__staff__user_account=user
+        sessions__staff_assignments__staff__user_account=user,
+        sessions__staff_assignments__response_status__in=["pending", "accepted"],
     ).distinct()
 
 
@@ -67,6 +75,50 @@ def _session_id_from_query(request):
 
 def _session_id_from_payload(payload):
     return payload.get("session_id") or payload.get("session")
+
+
+def _normalize_lookup_name(value):
+    return str(value or "").strip().lower()
+
+
+def _find_order_local_ingredient(session, ingredient_name):
+    order_local = getattr(session, "order_local_ingredients", None) or {}
+    if not isinstance(order_local, dict):
+        return None, None
+
+    target = _normalize_lookup_name(ingredient_name)
+    for name, entry in order_local.items():
+        local_name = str(name or "").strip()
+        if not local_name:
+            continue
+
+        candidates = {_normalize_lookup_name(local_name)}
+        if isinstance(entry, dict):
+            for_item = str(entry.get("for_item") or "").strip()
+            if for_item:
+                candidates.add(_normalize_lookup_name(f"{local_name} (for {for_item})"))
+
+        if target in candidates:
+            return local_name, entry
+    return None, None
+
+
+def _local_ingredient_category_name(entry):
+    if isinstance(entry, dict):
+        return str(entry.get("category") or "").strip()
+    return ""
+
+
+def _vendor_info_from_assignment(assignment):
+    if not assignment:
+        return None
+    vendor_obj = assignment.vendor
+    return {
+        "id": vendor_obj.id,
+        "name": vendor_obj.name,
+        "mobile_no": vendor_obj.mobile_no,
+        "source_type": assignment.source_type,
+    }
 
 
 def _extract_dish_names(node):
@@ -296,7 +348,7 @@ def calculate_ingredients_required(session_obj):
 
     # Load relational vendor assignments instead of the JSON blob
     ingredient_vendor_assignments = {
-        assign.ingredient.name.strip().lower(): assign.vendor
+        assign.ingredient.name.strip().lower(): assign
         for assign in IngredientVendorAssignment.objects.filter(session=session_obj).select_related("vendor", "ingredient")
     }
 
@@ -319,23 +371,16 @@ def calculate_ingredients_required(session_obj):
         if stock_info is None:
             stock_info = fuzzy_lookup(ingredient, stock_map, cutoff=0.6) or {}
 
-        vendor_obj = ingredient_vendor_assignments.get(ingredient.strip().lower())
-        if not vendor_obj:
+        vendor_assignment = ingredient_vendor_assignments.get(ingredient.strip().lower())
+        if not vendor_assignment:
             # Fuzzy match keys just in case
             keys = list(ingredient_vendor_assignments.keys())
             close = difflib.get_close_matches(ingredient.strip().lower(), [k.strip().lower() for k in keys], n=1, cutoff=0.6)
             if close:
                 matched_key = keys[[k.strip().lower() for k in keys].index(close[0])]
-                vendor_obj = ingredient_vendor_assignments.get(matched_key)
+                vendor_assignment = ingredient_vendor_assignments.get(matched_key)
         
-        vendor_info = None
-        if vendor_obj:
-            vendor_info = {
-                "id": vendor_obj.id,
-                "name": vendor_obj.name,
-                "mobile_no": vendor_obj.mobile_no,
-                "source_type": IngredientVendorAssignment.objects.filter(session=session_obj, ingredient__name__iexact=ingredient).first().source_type if IngredientVendorAssignment.objects.filter(session=session_obj, ingredient__name__iexact=ingredient).exists() else "manual"
-            }
+        vendor_info = _vendor_info_from_assignment(vendor_assignment)
 
         final_ingredients[ingredient] = {
             "quantity": f"{to_number(converted_value)} {converted_unit}".strip(),
@@ -371,12 +416,8 @@ def calculate_ingredients_required(session_obj):
             key = item.name.strip().lower()
             stock_info = common_stock_map.get(key, {})
 
-            vendor_obj = ingredient_vendor_assignments.get(key)
-            vendor_info = {
-                "id": vendor_obj.id,
-                "name": vendor_obj.name,
-                "mobile_no": vendor_obj.mobile_no,
-            } if vendor_obj else None
+            vendor_assignment = ingredient_vendor_assignments.get(key)
+            vendor_info = _vendor_info_from_assignment(vendor_assignment)
 
             final_ingredients[item.name] = {
                 "quantity": "0",
@@ -411,6 +452,10 @@ def calculate_ingredients_required(session_obj):
                 category = category_map.get(name.strip().lower(), "") or ""
 
             stock_info = stock_map.get(name.strip().lower()) or {}
+            vendor_assignment = ingredient_vendor_assignments.get(
+                name.strip().lower()
+            )
+            vendor_info = _vendor_info_from_assignment(vendor_assignment)
 
             # Avoid clobbering a global-recipe entry if the user happened to
             # pick the same name. The frontend already namespaces with
@@ -429,6 +474,8 @@ def calculate_ingredients_required(session_obj):
                 "source": "order_local",
                 "for_item": for_item,
             }
+            if vendor_info:
+                final_ingredients[display_name]["vendor"] = vendor_info
 
     return final_ingredients, outsourced_items
 
@@ -527,7 +574,12 @@ class EventBookingViewSet(generics.GenericAPIView):
                 if changed:
                     session.save()
 
-        serializer = EventBookingSerializer(queryset, many=True)
+        # Context is required so the nested EventSessionSerializer knows the
+        # current user — used to set `is_mine` on each assignment payload so
+        # mobile can show the right Accept/Decline buttons.
+        serializer = EventBookingSerializer(
+            queryset, many=True, context={"request": request}
+        )
 
         for event_data, event_obj in zip(serializer.data, queryset):
             if requested_session_id:
@@ -634,7 +686,11 @@ class EventBookingGetViewSet(generics.GenericAPIView):
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
             ).get(pk=pk)
-            serializer = EventBookingSerializer(eventbooking)
+            # Context needed so the nested EventSessionSerializer can populate
+            # `is_mine` on each assignment from `request.user`.
+            serializer = EventBookingSerializer(
+                eventbooking, context={"request": request}
+            )
 
             response_data = serializer.data
             if requested_session_id:
@@ -726,7 +782,9 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
             .filter(status="pending")
             .order_by("-date")
         )
-        serializer = EventBookingSerializer(queryset, many=True)
+        serializer = EventBookingSerializer(
+            queryset, many=True, context={"request": request}
+        )
         return Response(
             {
                 "status": True,
@@ -820,22 +878,27 @@ class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         payload = request.data.copy()
-        ingredient_name = payload.get("ingredient_name")
+        ingredient_name = str(payload.get("ingredient_name") or "").strip()
         session_id = _session_id_from_payload(payload)
         session = None
         if session_id:
             payload["session"] = session_id
             from .models import EventSession
 
-            session = EventSession.objects.select_related("booking").get(id=session_id)
+            session = EventSession.objects.select_related(
+                "booking", "booking__branch_profile"
+            ).get(id=session_id)
             ensure_object_in_user_branch(session.booking, request)
         
         # Look up ingredient by name to get its ID
         if ingredient_name:
-            from ListOfIngridients.models import IngridientsItem
+            from ListOfIngridients.models import IngridientsCategory, IngridientsItem
+
+            payload["ingredient_name"] = ingredient_name
+            booking_branch = session.booking.branch_profile if session else None
+            booking_branch_id = getattr(booking_branch, "id", None)
             ingredient_qs = IngridientsItem.objects.filter(name__iexact=ingredient_name)
             if session is not None:
-                booking_branch_id = session.booking.branch_profile_id
                 if booking_branch_id is not None:
                     ingredient_qs = ingredient_qs.filter(
                         Q(branch_profile_id=booking_branch_id)
@@ -845,6 +908,61 @@ class IngredientVendorAssignmentViewSet(generics.ListCreateAPIView):
             ingredient_obj = ingredient_qs.order_by(
                 F("branch_profile").asc(nulls_last=True)
             ).first()
+
+            if not ingredient_obj and session is not None:
+                local_name, local_entry = _find_order_local_ingredient(
+                    session, ingredient_name
+                )
+                if local_name:
+                    ingredient_qs = IngridientsItem.objects.filter(
+                        name__iexact=local_name
+                    )
+                    if booking_branch_id is not None:
+                        ingredient_qs = ingredient_qs.filter(
+                            Q(branch_profile_id=booking_branch_id)
+                            | Q(branch_profile__isnull=True)
+                        )
+                    ingredient_obj = ingredient_qs.order_by(
+                        F("branch_profile").asc(nulls_last=True)
+                    ).first()
+
+                    if not ingredient_obj:
+                        category_name = _local_ingredient_category_name(local_entry)
+                        if not category_name:
+                            return Response(
+                                {
+                                    "error": (
+                                        f"Ingredient '{ingredient_name}' is a local "
+                                        "session ingredient, but it has no category "
+                                        "so it cannot be saved as a master ingredient."
+                                    )
+                                },
+                                status=400,
+                            )
+
+                        category_qs = IngridientsCategory.objects.filter(
+                            name__iexact=category_name
+                        )
+                        if booking_branch_id is not None:
+                            category_qs = category_qs.filter(
+                                Q(branch_profile_id=booking_branch_id)
+                                | Q(branch_profile__isnull=True)
+                            )
+                        category_obj = category_qs.order_by(
+                            F("branch_profile").asc(nulls_last=True)
+                        ).first()
+                        if not category_obj:
+                            category_obj = IngridientsCategory.objects.create(
+                                name=category_name,
+                                branch_profile=booking_branch,
+                            )
+
+                        ingredient_obj = IngridientsItem.objects.create(
+                            name=local_name,
+                            category=category_obj,
+                            branch_profile=booking_branch,
+                        )
+
             if not ingredient_obj:
                 return Response({"error": f"Ingredient '{ingredient_name}' not found"}, status=400)
             payload["ingredient"] = ingredient_obj.id
