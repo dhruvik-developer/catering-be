@@ -91,44 +91,76 @@ class EventSessionSerializer(serializers.ModelSerializer):
         data["ground_management"] = self.get_ground_management(instance)
         return data
 
+    def _assignment_payload(self, assignment, role_name):
+        """Shared shape for managers_assigned / summoned_staff_details. Adds
+        the staff response workflow fields (status, decline reason, history)
+        and an `is_mine` flag so the mobile app can show Accept/Decline only
+        for assignments owned by the current user."""
+        request = self.context.get("request") if hasattr(self, "context") else None
+        viewer_id = (
+            request.user.id
+            if request is not None and getattr(request.user, "is_authenticated", False)
+            else None
+        )
+        staff_user_id = getattr(assignment.staff, "user_account_id", None)
+
+        history = [
+            {
+                "id": entry.id,
+                "response": entry.response,
+                "reason": entry.reason or "",
+                "responded_by_id": entry.responded_by_id,
+                "responded_by_username": (
+                    entry.responded_by.username if entry.responded_by_id else None
+                ),
+                "responded_at": entry.responded_at,
+            }
+            for entry in assignment.response_history.all()
+        ]
+
+        return {
+            "assignment_id": assignment.id,
+            "name": assignment.staff.name,
+            "staff_id": assignment.staff_id,
+            "staff_type": assignment.staff.staff_type,
+            "people_summoned": assignment.number_of_persons,
+            "role": role_name,
+            # Response workflow
+            "response_status": assignment.response_status,
+            "decline_reason": assignment.decline_reason or "",
+            "responded_at": assignment.responded_at,
+            "is_mine": bool(staff_user_id) and staff_user_id == viewer_id,
+            "response_history": history,
+        }
+
     def get_managers_assigned(self, obj):
         managers = []
-        for assignment in obj.staff_assignments.all():
+        assignments = obj.staff_assignments.select_related(
+            "staff", "staff__user_account", "role_at_event", "staff__role"
+        ).prefetch_related("response_history__responded_by")
+        for assignment in assignments:
             role_name = (
                 assignment.role_at_event.name
                 if assignment.role_at_event
                 else (assignment.staff.role.name if assignment.staff.role else "")
             )
             if role_name.lower() == "manager" or assignment.staff.staff_type == "Fixed":
-                managers.append(
-                    {
-                        "assignment_id": assignment.id,
-                        "name": assignment.staff.name,
-                        "staff_type": assignment.staff.staff_type,
-                        "people_summoned": assignment.number_of_persons,
-                        "role": role_name,
-                    }
-                )
+                managers.append(self._assignment_payload(assignment, role_name))
         return managers
 
     def get_summoned_staff_details(self, obj):
         summoned_staff = []
-        for assignment in obj.staff_assignments.all():
+        assignments = obj.staff_assignments.select_related(
+            "staff", "staff__user_account", "role_at_event", "staff__role"
+        ).prefetch_related("response_history__responded_by")
+        for assignment in assignments:
             role_name = (
                 assignment.role_at_event.name
                 if assignment.role_at_event
                 else (assignment.staff.role.name if assignment.staff.role else "")
             )
             if assignment.staff.staff_type in ["Agency", "Contract"]:
-                summoned_staff.append(
-                    {
-                        "assignment_id": assignment.id,
-                        "name": assignment.staff.name,
-                        "staff_type": assignment.staff.staff_type,
-                        "people_summoned": assignment.number_of_persons,
-                        "role": role_name,
-                    }
-                )
+                summoned_staff.append(self._assignment_payload(assignment, role_name))
         return summoned_staff
 
     def get_ground_management(self, obj):

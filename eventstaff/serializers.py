@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from .models import (
     EventStaffAssignment,
+    EventStaffAssignmentResponse,
     FixedStaffSalaryPayment,
     Staff,
     StaffRole,
@@ -291,6 +292,24 @@ class StaffSerializer(serializers.ModelSerializer):
         return instance
 
 
+class EventStaffAssignmentResponseSerializer(serializers.ModelSerializer):
+    responded_by_username = serializers.CharField(
+        source="responded_by.username", read_only=True
+    )
+
+    class Meta:
+        model = EventStaffAssignmentResponse
+        fields = (
+            "id",
+            "response",
+            "reason",
+            "responded_by",
+            "responded_by_username",
+            "responded_at",
+        )
+        read_only_fields = fields
+
+
 class EventStaffAssignmentSerializer(serializers.ModelSerializer):
     staff_name = serializers.CharField(source="staff.name", read_only=True)
     staff_type = serializers.CharField(source="staff.staff_type", read_only=True)
@@ -298,6 +317,10 @@ class EventStaffAssignmentSerializer(serializers.ModelSerializer):
     session_date = serializers.CharField(source="session.event_date", read_only=True)
     role_name_at_event = serializers.CharField(
         source="role_at_event.name", read_only=True
+    )
+    is_mine = serializers.SerializerMethodField()
+    response_history = EventStaffAssignmentResponseSerializer(
+        many=True, read_only=True
     )
 
     class Meta:
@@ -309,7 +332,24 @@ class EventStaffAssignmentSerializer(serializers.ModelSerializer):
             "payment_status",
             "created_at",
             "updated_at",
+            # Response state is mutated only via the dedicated `/respond/`
+            # endpoint so admins can't accidentally overwrite it from the
+            # general assignment-edit flow.
+            "response_status",
+            "decline_reason",
+            "responded_at",
+            "response_history",
         )
+
+    def get_is_mine(self, obj):
+        """True when the currently authenticated user owns the staff record
+        attached to this assignment. Used by the mobile app to decide whether
+        to show Accept / Decline buttons on a specific row."""
+        request = self.context.get("request")
+        if request is None or not getattr(request.user, "is_authenticated", False):
+            return False
+        user_account_id = getattr(getattr(obj, "staff", None), "user_account_id", None)
+        return bool(user_account_id) and user_account_id == request.user.id
 
     def validate(self, data):
         paid_amount = data.get("paid_amount", 0)

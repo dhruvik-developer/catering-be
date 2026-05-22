@@ -79,6 +79,11 @@ urlpatterns = [
         name="eventstaffassignment-event-summary",
     ),
     path(
+        "event-assignments/<int:pk>/respond/",
+        EventStaffAssignmentViewSet.as_view({"post": "respond"}),
+        name="eventstaffassignment-respond",
+    ),
+    path(
         "fixed-salary-payments/",
         FixedStaffSalaryPaymentViewSet.as_view({"get": "list", "post": "create"}),
         name="fixed-salary-payment-list",

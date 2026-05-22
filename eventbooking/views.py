@@ -25,6 +25,31 @@ logger = logging.getLogger(__name__)
 DEFAULT_ESTIMATED_PERSONS = 100
 
 
+_ASSIGNED_TO_ME_TRUTHY = {"1", "true", "yes", "on", "me"}
+
+
+def _wants_assigned_to_me(request):
+    raw = request.query_params.get("assigned_to_me")
+    if raw is None:
+        return False
+    return raw.strip().lower() in _ASSIGNED_TO_ME_TRUTHY
+
+
+def _restrict_to_assigned_staff(queryset, request):
+    # Opt-in via ?assigned_to_me=true. Works from mobile or web. The caller
+    # must be linked to a Staff record via Staff.user_account, otherwise an
+    # empty queryset comes back so an unauthenticated/unlinked user can't
+    # accidentally see everything just by sending the flag.
+    if not _wants_assigned_to_me(request):
+        return queryset
+    user = request.user
+    if not getattr(user, "is_authenticated", False):
+        return queryset.none()
+    return queryset.filter(
+        sessions__staff_assignments__staff__user_account=user
+    ).distinct()
+
+
 def _safe_amount(value):
     """Parse a money-shaped value from loose JSON (string, int, float, None).
     Returns 0 for blank / non-numeric inputs instead of raising ValueError."""
@@ -414,7 +439,8 @@ class EventBookingViewSet(generics.GenericAPIView):
     permission_resource = "event_bookings"
 
     def get_queryset(self):
-        return filter_branch_queryset(EventBooking.objects.all(), self.request)
+        qs = filter_branch_queryset(EventBooking.objects.all(), self.request)
+        return _restrict_to_assigned_staff(qs, self.request)
 
     def post(self, request):
         sessions = request.data.get("sessions", [])
@@ -536,7 +562,8 @@ class EventBookingGetViewSet(generics.GenericAPIView):
     permission_resource = "event_bookings"
 
     def get_queryset(self):
-        return filter_branch_queryset(EventBooking.objects.all(), self.request)
+        qs = filter_branch_queryset(EventBooking.objects.all(), self.request)
+        return _restrict_to_assigned_staff(qs, self.request)
 
     def put(self, request, pk=None):
         try:
@@ -685,7 +712,8 @@ class PendingEventBookingViewSet(generics.GenericAPIView):
     permission_resource = "event_booking_reports"
 
     def get_queryset(self):
-        return filter_branch_queryset(EventBooking.objects.all(), self.request)
+        qs = filter_branch_queryset(EventBooking.objects.all(), self.request)
+        return _restrict_to_assigned_staff(qs, self.request)
 
     def get(self, request):
         EventBooking.cancel_expired_pending_bookings()

@@ -1,8 +1,10 @@
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Count, Q, Sum
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, viewsets
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -17,6 +19,7 @@ from user.branching import (
 
 from .models import (
     EventStaffAssignment,
+    EventStaffAssignmentResponse,
     FixedStaffSalaryPayment,
     Staff,
     StaffRole,
@@ -424,6 +427,101 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
             qs = qs.filter(staff__staff_type=staff_type)
 
         return qs
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="respond",
+        # Anyone authenticated can call this; we enforce that only the
+        # assigned staff (or an admin) can act on the row inside the body of
+        # the action.
+        permission_classes=[IsAdminUserOrReadOnly],
+    )
+    @transaction.atomic
+    def respond(self, request, pk=None):
+        """Staff (or an admin acting on their behalf) accepts or declines an
+        assignment. Updates the live status fields and writes a row to
+        `response_history` so the timeline is preserved across reassignments.
+
+        Body shape:
+            { "response": "accepted" | "declined", "reason": "optional text" }
+        """
+        try:
+            assignment = self.get_queryset().get(pk=pk)
+        except EventStaffAssignment.DoesNotExist:
+            return Response(
+                {"status": False, "message": "Assignment not found.", "data": {}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Authorization: the assignment's staff.user_account must match the
+        # caller, OR the caller must be an admin. We check explicitly instead
+        # of relying on a permission class because the rule is row-specific.
+        user = request.user
+        staff_user_id = getattr(assignment.staff, "user_account_id", None)
+        is_owner = bool(staff_user_id) and staff_user_id == user.id
+        is_admin = bool(getattr(user, "is_staff", False) or getattr(user, "is_superuser", False))
+        if not (is_owner or is_admin):
+            raise PermissionDenied(
+                "You can only respond to assignments that belong to you."
+            )
+
+        response_value = str(request.data.get("response", "")).strip().lower()
+        if response_value not in (
+            EventStaffAssignment.RESPONSE_ACCEPTED,
+            EventStaffAssignment.RESPONSE_DECLINED,
+        ):
+            return Response(
+                {
+                    "status": False,
+                    "message": "`response` must be 'accepted' or 'declined'.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reason = str(request.data.get("reason", "") or "").strip()
+        if response_value == EventStaffAssignment.RESPONSE_DECLINED and not reason:
+            return Response(
+                {
+                    "status": False,
+                    "message": "A reason is required when declining an assignment.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        assignment.response_status = response_value
+        assignment.decline_reason = (
+            reason if response_value == EventStaffAssignment.RESPONSE_DECLINED else ""
+        )
+        assignment.responded_at = now
+        assignment.save(
+            update_fields=["response_status", "decline_reason", "responded_at", "updated_at"]
+        )
+
+        EventStaffAssignmentResponse.objects.create(
+            assignment=assignment,
+            response=response_value,
+            reason=reason,
+            responded_by=user,
+            responded_at=now,
+        )
+
+        serializer = self.get_serializer(assignment)
+        return Response(
+            {
+                "status": True,
+                "message": (
+                    "Assignment accepted."
+                    if response_value == EventStaffAssignment.RESPONSE_ACCEPTED
+                    else "Assignment declined."
+                ),
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=["get"], url_path="event-summary")
     def event_summary(self, request):

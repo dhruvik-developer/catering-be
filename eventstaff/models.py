@@ -239,6 +239,15 @@ class EventStaffAssignment(models.Model):
         ("Paid", "Paid"),
     )
 
+    RESPONSE_PENDING = "pending"
+    RESPONSE_ACCEPTED = "accepted"
+    RESPONSE_DECLINED = "declined"
+    RESPONSE_STATUS_CHOICES = (
+        (RESPONSE_PENDING, "Pending"),
+        (RESPONSE_ACCEPTED, "Accepted"),
+        (RESPONSE_DECLINED, "Declined"),
+    )
+
     session = models.ForeignKey(
         EventSession,
         on_delete=models.CASCADE,
@@ -252,6 +261,29 @@ class EventStaffAssignment(models.Model):
         on_delete=models.CASCADE,
         related_name="event_assignments",
         verbose_name="Staff",
+    )
+
+    # The assigned staff member can accept or decline the work; admins see the
+    # response (and any decline reason) on the booking detail so they know to
+    # reassign. Full history of every action is kept in
+    # `EventStaffAssignmentResponse` below.
+    response_status = models.CharField(
+        "Staff Response Status",
+        max_length=12,
+        choices=RESPONSE_STATUS_CHOICES,
+        default=RESPONSE_PENDING,
+    )
+    decline_reason = models.TextField(
+        "Decline Reason",
+        blank=True,
+        default="",
+        help_text="Required when response_status is 'declined'.",
+    )
+    responded_at = models.DateTimeField(
+        "Responded At",
+        null=True,
+        blank=True,
+        help_text="Timestamp of the latest accept/decline by the assigned staff.",
     )
 
     role_at_event = models.ForeignKey(
@@ -350,6 +382,58 @@ class EventStaffAssignment(models.Model):
             self.role_at_event = self.staff.role
 
         super().save(*args, **kwargs)
+
+
+class EventStaffAssignmentResponse(models.Model):
+    """Append-only log of every accept/decline action on an
+    `EventStaffAssignment`. Lets admins see "first assigned to X (declined: 'on
+    leave'), then assigned to Y (accepted)" timelines on a single booking even
+    after the staff record is reassigned."""
+
+    RESPONSE_ACCEPTED = EventStaffAssignment.RESPONSE_ACCEPTED
+    RESPONSE_DECLINED = EventStaffAssignment.RESPONSE_DECLINED
+    RESPONSE_CHOICES = (
+        (RESPONSE_ACCEPTED, "Accepted"),
+        (RESPONSE_DECLINED, "Declined"),
+    )
+
+    assignment = models.ForeignKey(
+        EventStaffAssignment,
+        on_delete=models.CASCADE,
+        related_name="response_history",
+        verbose_name="Assignment",
+    )
+    response = models.CharField(
+        "Response",
+        max_length=12,
+        choices=RESPONSE_CHOICES,
+    )
+    reason = models.TextField(
+        "Reason",
+        blank=True,
+        default="",
+        help_text="Required for declines, optional for acceptances.",
+    )
+    responded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="staff_assignment_responses",
+        verbose_name="Responded By",
+    )
+    responded_at = models.DateTimeField(
+        "Responded At",
+        default=django.utils.timezone.now,
+    )
+
+    class Meta:
+        verbose_name = "Event Staff Assignment Response"
+        verbose_name_plural = "Event Staff Assignment Responses"
+        ordering = ("-responded_at",)
+
+    def __str__(self):
+        return f"{self.assignment_id} -> {self.response} at {self.responded_at:%Y-%m-%d %H:%M}"
 
 
 class FixedStaffSalaryPayment(models.Model):
