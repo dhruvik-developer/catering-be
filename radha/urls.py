@@ -35,6 +35,7 @@ urlpatterns = [
     path("api/", include("eventstaff.urls")),
     path("api/", include("groundmanagement.urls")),
     path("api/", include("leads.urls")),
+    path("api/", include("notifications.urls")),
 ]
 
 if settings.DEBUG:

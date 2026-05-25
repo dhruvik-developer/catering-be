@@ -470,3 +470,209 @@ APP_DIR=/root/catering-be scripts/update_subscription_statuses.sh --dry-run
 
 - `CORS_ALLOW_ALL_ORIGINS` defaults to `True` in settings; tighten this in production.
 - README no longer references a Postman collection file because `radha.postman_collection.json` is not present in this repository.
+
+## Realtime Notifications (WebSocket + FCM)
+
+The `notifications` app delivers instant alerts to staff/vendor users when an
+admin assigns them work. Live clients (app open) receive a WebSocket frame
+immediately; offline clients (app closed/backgrounded) receive a Firebase
+Cloud Messaging push.
+
+Trigger point: `notifications/signals.py` listens to `post_save` on
+`eventstaff.EventStaffAssignment` and calls `NotificationService.notify_user`.
+
+### Runtime topology
+
+| Process | Started by | Port | Handles |
+|---------|-----------|------|---------|
+| Gunicorn | `catering-be.sh` (child) | 8009 | `/api/*` REST |
+| Daphne   | `catering-be.sh` (child) | 8010 | `/ws/*` WebSockets |
+| Redis    | system / Memurai service | 6379 | Channels layer + future Celery broker |
+
+WebSockets are long-lived async connections. Gunicorn's sync worker model
+can't hold them, so we run Daphne (ASGI) alongside Gunicorn (WSGI) against
+the same Django code (`radha.wsgi:application` and `radha.asgi:application`
+respectively).
+
+**One PM2 entry supervises both.** `catering-be.sh` launches gunicorn and
+daphne as background children, traps SIGTERM, and exits as soon as either
+child dies — PM2 then restarts the whole thing together. So you keep:
+
+```bash
+pm2 start catering-be.sh --name catering-be
+```
+
+…exactly like before. No separate WebSocket process to manage.
+
+### 1) Install Redis
+
+Pick the one that matches your dev OS:
+
+**Linux / macOS:**
+```bash
+sudo apt install -y redis-server                   # Debian/Ubuntu
+sudo systemctl enable --now redis-server
+# or:  brew install redis && brew services start redis
+```
+
+**Windows — Docker (recommended)** if Docker Desktop is installed:
+```powershell
+docker run -d --name redis -p 6379:6379 --restart unless-stopped redis:7-alpine
+docker exec redis redis-cli ping     # → PONG
+```
+
+**Windows — Memurai** if you don't want Docker: download the free Developer
+edition from <https://www.memurai.com/get-memurai>. The installer registers a
+Windows service that starts on boot. Verify with `memurai-cli ping`.
+
+**Windows — WSL2**:
+```bash
+wsl -- sudo apt install -y redis-server
+wsl -- sudo service redis-server start
+```
+WSL2 exposes services on the host's `127.0.0.1`, so no port-forwarding needed.
+
+**Verify from the Python venv** before you start daphne:
+```powershell
+python -c "import redis; print(redis.Redis(host='127.0.0.1', port=6379).ping())"
+```
+Must print `True`. If it raises `ConnectionRefusedError` daphne will spin in
+a reconnect loop with the WS client (every WS handshake reaches the consumer
+but `channel_layer.group_add` then fails — that's the canonical symptom).
+
+**Production**: bind to `127.0.0.1` only and set `requirepass` in
+`/etc/redis/redis.conf`. Update `REDIS_URL` in `.env` accordingly
+(`redis://:password@127.0.0.1:6379/0`).
+
+### 2) Firebase service-account JSON
+
+Download from Firebase Console → ⚙ Project settings → **Service accounts** →
+"Generate new private key". Drop the file at:
+
+```
+radha-be/secrets/firebase-service-account.json   # default path
+```
+
+…or set `FIREBASE_CREDENTIALS_PATH` in `.env` to a custom location. **Add
+`secrets/` to `.gitignore`** — this file authenticates the backend to Google
+as the project.
+
+If the file is absent the notification system still works over WebSocket;
+only push-to-closed-app is disabled.
+
+### 3) Environment variables
+
+Add to `.env`:
+
+```
+REDIS_URL=redis://127.0.0.1:6379/0
+FIREBASE_CREDENTIALS_PATH=/abs/path/to/firebase-service-account.json
+# Optional — defaults to INFO
+NOTIFICATIONS_LOG_LEVEL=DEBUG
+```
+
+### 4) Migrations
+
+`notifications` lives in `TENANT_APPS`, so each tenant schema gets its own
+`notifications_notification` and `notifications_device_token` tables:
+
+```bash
+python manage.py makemigrations notifications
+python manage.py migrate_schemas --shared
+python manage.py migrate_schemas --tenant
+```
+
+### 5) Start the server
+
+`catering-be.sh` starts BOTH gunicorn (port 8009) and daphne (port 8010) as
+child processes. One PM2 entry is enough:
+
+```bash
+pm2 start catering-be.sh --name catering-be
+pm2 logs catering-be   # you should see both "Starting Daphne" and "Starting Gunicorn"
+```
+
+To override the WebSocket port or scale tuning:
+```bash
+DAPHNE_PORT=8020 GUNICORN_TIMEOUT=120 pm2 start catering-be.sh --name catering-be
+```
+
+**Local dev** without PM2:
+```bash
+./catering-be.sh
+```
+Two processes will start in the foreground; Ctrl+C kills both cleanly.
+
+If you ever want to scale daphne separately (e.g. dedicate it to a different
+host), you can still run it alone:
+```bash
+daphne -b 127.0.0.1 -p 8010 --proxy-headers radha.asgi:application
+```
+
+### 6) Nginx (production)
+
+Add inside the existing `*.<your-domain>` server block:
+
+```nginx
+location /ws/ {
+    proxy_pass http://127.0.0.1:8010;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 3600s;
+}
+```
+
+### 7) Smoke test
+
+From `python manage.py shell` inside a tenant context:
+
+```python
+from django_tenants.utils import schema_context
+from django.contrib.auth import get_user_model
+from notifications.services import NotificationService
+
+with schema_context("pruthvi"):
+    u = get_user_model().objects.get(username="<staff-user>")
+    NotificationService.notify_user(
+        u,
+        notification_type="generic",
+        title="Hello",
+        message="From the shell.",
+        data={"route": "/dashboard"},
+    )
+```
+
+Expected: one row in the tenant's `notifications_notification` table; any
+open WS client (Flutter app or web bell) receives a `{"type":"notification"…}`
+frame instantly; any registered device token receives an FCM push.
+
+### Files in this app
+
+| File | Purpose |
+|------|---------|
+| `notifications/models.py` | `Notification` (history) + `DeviceToken` (FCM registrations) — per-tenant |
+| `notifications/services.py` | `NotificationService.notify_user(...)` — the only public entry point |
+| `notifications/consumers.py` | `NotificationConsumer` — channel group `t_<schema>_u_<user_id>` |
+| `notifications/middleware.py` | Tenant-aware JWT auth for WebSocket upgrades |
+| `notifications/fcm.py` | Firebase Admin wrapper; lazy-init; auto-disables when credentials missing |
+| `notifications/signals.py` | `post_save` receiver on `EventStaffAssignment` |
+| `notifications/views.py` | REST: list, unread-count, mark-read, register-device, unregister-device |
+| `radha/asgi.py` | Channels `ProtocolTypeRouter` (HTTP → Django, WebSocket → consumers) |
+
+### Channel group naming
+
+`t_<schema_name>_u_<user_uuid>`. Including the schema name in the group makes
+cross-tenant fan-out impossible even on the theoretical chance of UUID
+collisions across tenants.
+
+### FCM dispatch
+
+Runs in a shared `ThreadPoolExecutor(max_workers=4)` from
+`NotificationService` so the REST request that triggered the notification
+returns immediately. Switch to Celery only when you outgrow this — single-box
+throughput of ~5 notifications/sec is fine here.

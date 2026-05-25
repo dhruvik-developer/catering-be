@@ -96,6 +96,10 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 # Application definition
 
 SHARED_APPS = (
+    # `daphne` must come before django.contrib.staticfiles for the runserver
+    # override to take effect. It's a no-models app so this has no migration
+    # impact.
+    "daphne",
     "django_tenants",
     "tenancy",
     "django.contrib.admin",
@@ -104,6 +108,7 @@ SHARED_APPS = (
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
     "rest_framework",
     "corsheaders",
     "rest_framework.authtoken",
@@ -139,6 +144,7 @@ TENANT_APPS = (
     "vendor",
     "eventstaff",
     "groundmanagement",
+    "notifications",
 )
 
 INSTALLED_APPS = list(SHARED_APPS) + [
@@ -187,6 +193,33 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "radha.wsgi.application"
+ASGI_APPLICATION = "radha.asgi.application"
+
+# ──────────────── Channels / Redis ────────────────
+# Daphne (managed by `catering-ws.sh`) terminates WebSocket upgrades on
+# `/ws/*`; gunicorn keeps serving everything else. The channel layer uses
+# Redis so group_send broadcasts work across multiple daphne workers.
+REDIS_URL = get_env("REDIS_URL", "redis://127.0.0.1:6379/0")
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+            "capacity": 1500,
+            "expiry": 30,
+        },
+    },
+}
+
+# ──────────────── Firebase Cloud Messaging ────────────────
+# Path to the service-account JSON downloaded from the Firebase console.
+# If the file is missing FCM dispatch is silently disabled — WebSocket
+# delivery still works, so local dev without Firebase is fine.
+FIREBASE_CREDENTIALS_PATH = get_env(
+    "FIREBASE_CREDENTIALS_PATH",
+    str(BASE_DIR / "secrets" / "firebase-service-account.json"),
+)
 
 
 # Database
@@ -246,6 +279,7 @@ SAAS_TENANT_APPS = (
     "Expense",
     "eventstaff",
     "groundmanagement",
+    "notifications",
 )
 
 SAAS_TENANT_SHARED_APP_MODELS = (
@@ -418,6 +452,11 @@ LOGGING = {
         "django.request": {
             "handlers": ["console"],
             "level": "WARNING",
+            "propagate": False,
+        },
+        "notifications": {
+            "handlers": ["console"],
+            "level": os.getenv("NOTIFICATIONS_LOG_LEVEL", "INFO"),
             "propagate": False,
         },
     },
