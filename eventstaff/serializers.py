@@ -315,6 +315,14 @@ class EventStaffAssignmentSerializer(serializers.ModelSerializer):
     staff_type = serializers.CharField(source="staff.staff_type", read_only=True)
     session_name = serializers.CharField(source="session.booking.name", read_only=True)
     session_date = serializers.CharField(source="session.event_date", read_only=True)
+    # Booking-side branch is the canonical authority for the "staff and event
+    # session must belong to the same branch" rule enforced in validate().
+    # Exposing it lets the admin UI scope its staff dropdown to the matching
+    # branch instead of letting a main tenant admin pick a cross-branch staff
+    # and trip the 400 at submit.
+    branch_profile_id = serializers.IntegerField(
+        source="session.booking.branch_profile_id", read_only=True
+    )
     role_name_at_event = serializers.CharField(
         source="role_at_event.name", read_only=True
     )
