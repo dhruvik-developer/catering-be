@@ -267,19 +267,19 @@ class EventSessionSerializer(serializers.ModelSerializer):
         return summoned_staff
 
     def get_vendor_assignments(self, obj):
-        """Every vendor row on the session. Admins see all; vendors viewing
-        their own portal (assigned_to_me=true) only see their own row to
-        avoid leaking other vendors' decline reasons / driver info."""
+        """Every vendor row on the session. Admins and staff/receivers see
+        all of them (they need driver info + per-item declines to plan the
+        receive). The list is restricted only when the viewer themselves is
+        a vendor — that's the one case where we don't want one vendor seeing
+        another vendor's decline reason or driver phone."""
         request = self.context.get("request") if hasattr(self, "context") else None
         qs = obj.vendor_assignments.select_related("vendor", "vendor__user_account")
-        if self._is_assignee_view(request):
-            viewer_id = (
-                request.user.id
-                if request is not None
-                and getattr(request.user, "is_authenticated", False)
-                else None
-            )
-            qs = qs.filter(vendor__user_account_id=viewer_id)
+        if self._is_assignee_view(request) and request is not None:
+            user = request.user
+            if getattr(user, "is_authenticated", False) and (
+                hasattr(user, "vendor_profile") and user.vendor_profile is not None
+            ):
+                qs = qs.filter(vendor__user_account=user)
         return EventVendorAssignmentSerializer(
             qs, many=True, context=self.context
         ).data

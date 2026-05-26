@@ -1392,15 +1392,81 @@ class VendorAssignmentRespondView(_VendorAssignmentBaseView):
         )
 
 
+def _item_keys_for_vendor_on_session(session, vendor):
+    """Compute the `SessionChecklistTick.item_key`s that belong to this
+    vendor on this session. Mirrors the keys the Flutter UI generates:
+        ingredient:<ingredient_name>            (raw ingredients)
+        outsourced:<item_name>::<vendor_name>   (outsourced dishes)
+
+    Used by the dispatch endpoint to auto-tick `delivered` for every item
+    the vendor is bringing — so the staff/receiver screen flips the per-row
+    "Dispatched" chip to green without the vendor having to tick each one
+    by hand."""
+    keys = []
+    vendor_name_norm = (vendor.name or "").strip().lower()
+
+    # `assigned_vendors`: { ingredient_name: { id, name, mobile_no, ... } }
+    assigned = getattr(session, "assigned_vendors", None) or {}
+    if isinstance(assigned, dict):
+        for ingredient_name, vend in assigned.items():
+            if not isinstance(vend, dict):
+                continue
+            raw_id = vend.get("id") or vend.get("vendor_id")
+            try:
+                vid = int(raw_id) if raw_id is not None else None
+            except (TypeError, ValueError):
+                vid = None
+            matches_by_id = vid == vendor.id if vid is not None else False
+            matches_by_name = (
+                str(vend.get("name") or vend.get("vendor_name") or "").strip().lower()
+                == vendor_name_norm
+            )
+            if matches_by_id or matches_by_name:
+                keys.append(f"ingredient:{ingredient_name}")
+
+    # `outsourced_items`: [ { item_name, vendor: {id, name, ...}, ... } ]
+    outsourced = getattr(session, "outsourced_items", None) or []
+    if isinstance(outsourced, list):
+        for item in outsourced:
+            if not isinstance(item, dict):
+                continue
+            vend = item.get("vendor") if isinstance(item.get("vendor"), dict) else None
+            raw_id = (vend or {}).get("id") or (vend or {}).get("vendor_id")
+            try:
+                vid = int(raw_id) if raw_id is not None else None
+            except (TypeError, ValueError):
+                vid = None
+            vname = ""
+            if vend:
+                vname = str(vend.get("name") or vend.get("vendor_name") or "").strip()
+            if not vname:
+                vname = str(item.get("vendor_name") or "").strip()
+            matches_by_id = vid == vendor.id if vid is not None else False
+            matches_by_name = vname.lower() == vendor_name_norm
+            if matches_by_id or matches_by_name:
+                item_name = str(
+                    item.get("item_name") or item.get("name") or ""
+                ).strip()
+                if item_name:
+                    # Use the vendor's canonical name (not whatever shape is
+                    # in the JSON) so the key matches what the Flutter UI
+                    # generates from the same source on the receiver side.
+                    keys.append(f"outsourced:{item_name}::{vendor.name}")
+
+    return keys
+
+
 class VendorAssignmentDispatchView(_VendorAssignmentBaseView):
     """`POST /event-vendor-assignments/<id>/dispatch/`
 
     Body: `{ "driver_name": "...", "driver_phone": "...", "driver_eta": "..." }`
 
-    Saves the driver/dispatch details. `dispatched_at` is auto-stamped to
-    now. Per-item dispatch ticks (one per ingredient / outsourced item) are
-    still toggled through the existing SessionChecklistView so the receiver
-    sees the same row going green there."""
+    Saves the driver/dispatch details, stamps `dispatched_at`, AND
+    auto-creates `SessionChecklistTick(action='delivered', is_done=True)`
+    rows for every item this vendor is bringing — that's what flips the
+    per-row "Dispatched" chip on the staff/receiver screen. Items the
+    vendor declined per-item are intentionally skipped (no truck is
+    coming for those)."""
 
     def post(self, request, pk):
         assignment, error = self._get_assignment_for_user(pk, request.user)
@@ -1444,6 +1510,25 @@ class VendorAssignmentDispatchView(_VendorAssignmentBaseView):
                 "updated_at",
             ]
         )
+
+        # Auto-tick `delivered` for every item this vendor is bringing so
+        # the staff screen reflects the dispatch state without the vendor
+        # having to tap each row. Per-item-declined keys are excluded.
+        declined = set(assignment.declined_item_keys or [])
+        item_keys = [
+            k
+            for k in _item_keys_for_vendor_on_session(
+                assignment.session, assignment.vendor
+            )
+            if k not in declined
+        ]
+        for key in item_keys:
+            SessionChecklistTick.objects.update_or_create(
+                session=assignment.session,
+                item_key=key,
+                action=SessionChecklistTick.ACTION_DELIVERED,
+                defaults={"is_done": True, "ticked_by": request.user},
+            )
 
         return Response(
             {
