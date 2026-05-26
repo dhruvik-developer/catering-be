@@ -43,27 +43,42 @@ atexit.register(lambda: _FCM_EXECUTOR.shutdown(wait=False, cancel_futures=False)
 def iter_admin_recipients(branch_profile_id=None):
     """Yield the admin users who should receive a tenant-wide alert.
 
-    Resolution rules — mirror the same scoping the rest of the codebase uses
-    for branch-aware permissions:
-      - Every `main_admin` user is always included (they oversee all
-        branches).
-      - `branch_admin` users are included only when their branch matches
-        `branch_profile_id`. If the caller doesn't know the branch (None),
-        every branch_admin is yielded so we don't silently miss anyone.
+    Resolution is intentionally permissive so we don't silently miss any
+    admin — particularly the legacy tenant admins created via the Django
+    admin path, which sets `is_staff=True` but never assigns a `branch_role`
+    (it stays at the default `branch_user`).
 
-    Inactive users are skipped so an offboarded admin doesn't keep getting
+      - Every `main_admin` user is included (they oversee all branches).
+      - Every `is_superuser` user is included (platform owner / debugging).
+      - `branch_admin` users matching the affected `branch_profile_id` are
+        included. With branch_profile_id=None we include every branch_admin
+        so an alert never goes to nobody.
+      - As a final fallback we include any active `is_staff=True` user with
+        no explicit role set — covers the legacy admin path noted above.
+
+    Inactive users are dropped so an offboarded admin doesn't keep receiving
     pushes on a stale FCM token. The caller stays inside the tenant schema —
-    this helper just reads; it doesn't open a schema_context of its own.
+    this helper just reads, no schema_context.
     """
-    qs = User.objects.filter(is_active=True, is_staff=True)
-    main = qs.filter(branch_role="main_admin")
-    branch = qs.filter(branch_role="branch_admin")
+    base = User.objects.filter(is_active=True)
+    candidates = list(base.filter(is_superuser=True))
+    candidates += list(base.filter(branch_role="main_admin"))
+
+    branch_q = base.filter(branch_role="branch_admin")
     if branch_profile_id is not None:
-        branch = branch.filter(branch_profile_id=branch_profile_id)
-    # Distinct on id to defend against the unlikely case where someone
-    # configured a user with both roles via a future schema change.
+        branch_q = branch_q.filter(branch_profile_id=branch_profile_id)
+    candidates += list(branch_q)
+
+    # Legacy admin fallback: is_staff but no explicit branch_role assignment.
+    # In practice this catches tenants set up via Django admin.
+    candidates += list(
+        base.filter(is_staff=True).exclude(
+            branch_role__in=("main_admin", "branch_admin")
+        )
+    )
+
     seen = set()
-    for user in list(main) + list(branch):
+    for user in candidates:
         if user.id in seen:
             continue
         seen.add(user.id)
