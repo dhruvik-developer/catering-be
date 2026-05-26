@@ -113,6 +113,7 @@ class EventSessionSerializer(serializers.ModelSerializer):
     summoned_staff_details = serializers.SerializerMethodField()
     vendor_assignments = serializers.SerializerMethodField()
     my_vendor_assignment = serializers.SerializerMethodField()
+    checklist_ticks = serializers.SerializerMethodField()
     ground_management = serializers.JSONField(required=False, write_only=True)
     outsourced_items = serializers.JSONField(required=False, default=list)
     order_local_ingredients = serializers.JSONField(required=False, default=dict)
@@ -136,6 +137,7 @@ class EventSessionSerializer(serializers.ModelSerializer):
             "summoned_staff_details",
             "vendor_assignments",
             "my_vendor_assignment",
+            "checklist_ticks",
             "assigned_vendors",
             "outsourced_items",
             "order_local_ingredients",
@@ -283,6 +285,25 @@ class EventSessionSerializer(serializers.ModelSerializer):
         return EventVendorAssignmentSerializer(
             qs, many=True, context=self.context
         ).data
+
+    def get_checklist_ticks(self, obj):
+        """Every checklist tick row on the session — `received`, `delivered`,
+        `rejected`, etc. Surfaced here so both staff and vendor portals can
+        render the right per-item chip without a second round-trip. The
+        Flutter side already has a dedicated checklist fetcher for the
+        screen that toggles ticks; this is for the read-only banner state
+        on the session detail."""
+        ticks = obj.checklist_ticks.all()
+        return [
+            {
+                "item_key": t.item_key,
+                "action": t.action,
+                "is_done": t.is_done,
+                "notes": t.notes or "",
+                "ticked_at": t.ticked_at,
+            }
+            for t in ticks
+        ]
 
     def get_my_vendor_assignment(self, obj):
         """Shortcut for the mobile vendor portal: the single row owned by
@@ -481,6 +502,7 @@ class SessionChecklistTickSerializer(serializers.ModelSerializer):
             "item_key",
             "action",
             "is_done",
+            "notes",
             "ticked_by_username",
             "ticked_at",
         )

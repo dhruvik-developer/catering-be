@@ -273,12 +273,17 @@ class SessionChecklistTick(models.Model):
     ACTION_RECEIVED = "received"
     ACTION_DELIVERED = "delivered"
     ACTION_AVAILABLE = "available"
+    # Receiver-side rejection — staff flags a damaged or wrong item that
+    # the vendor delivered. Triggers a push notification back to the
+    # vendor and surfaces in their session detail with the reason.
+    ACTION_REJECTED = "rejected"
     ACTION_CHOICES = (
         (ACTION_PREPARED, "Prepared"),
         (ACTION_SERVED, "Served"),
         (ACTION_RECEIVED, "Received"),
         (ACTION_DELIVERED, "Delivered"),
         (ACTION_AVAILABLE, "Available"),
+        (ACTION_REJECTED, "Rejected"),
     )
 
     session = models.ForeignKey(
@@ -289,6 +294,10 @@ class SessionChecklistTick(models.Model):
     item_key = models.CharField(max_length=255)
     action = models.CharField(max_length=20, choices=ACTION_CHOICES)
     is_done = models.BooleanField(default=False)
+    # Free-text annotation. Used today by ACTION_REJECTED to carry the
+    # damaged/wrong-item reason that the vendor sees back in their portal.
+    # Other actions leave it blank.
+    notes = models.TextField(blank=True, default="")
     ticked_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

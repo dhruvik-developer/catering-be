@@ -1119,6 +1119,7 @@ class SessionChecklistView(APIView):
         SessionChecklistTick.ACTION_RECEIVED,
         SessionChecklistTick.ACTION_DELIVERED,
         SessionChecklistTick.ACTION_AVAILABLE,
+        SessionChecklistTick.ACTION_REJECTED,
     }
 
     def _forbidden(self):
@@ -1149,6 +1150,7 @@ class SessionChecklistView(APIView):
         item_key = str(request.data.get("item_key", "")).strip()
         action_value = str(request.data.get("action", "")).strip().lower()
         is_done = bool(request.data.get("is_done", False))
+        notes = str(request.data.get("notes", "")).strip()
 
         if not item_key:
             return Response(
@@ -1164,13 +1166,49 @@ class SessionChecklistView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Rejection requires a reason so the vendor knows what went wrong.
+        # Other actions allow blank notes.
+        if (
+            action_value == SessionChecklistTick.ACTION_REJECTED
+            and is_done
+            and not notes
+        ):
+            return Response(
+                {
+                    "status": False,
+                    "message": "A reason is required when rejecting an item.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         tick, _created = SessionChecklistTick.objects.update_or_create(
             session=session,
             item_key=item_key,
             action=action_value,
-            defaults={"is_done": is_done, "ticked_by": request.user},
+            defaults={
+                "is_done": is_done,
+                "ticked_by": request.user,
+                "notes": notes,
+            },
         )
+
+        # Reject = notify the vendor immediately. Mark the matching
+        # `received` row false so the UI doesn't show both green-received
+        # and red-rejected at the same time for one item.
+        if action_value == SessionChecklistTick.ACTION_REJECTED and is_done:
+            SessionChecklistTick.objects.filter(
+                session=session,
+                item_key=item_key,
+                action=SessionChecklistTick.ACTION_RECEIVED,
+            ).update(is_done=False)
+            _notify_vendor_of_rejection(
+                session=session,
+                item_key=item_key,
+                reason=notes,
+                rejected_by=request.user,
+            )
+
         return Response(
             {
                 "status": True,
@@ -1189,6 +1227,74 @@ from django.utils import timezone as dj_timezone
 from datetime import datetime
 from eventbooking.models import EventVendorAssignment, EventVendorAssignmentResponse
 from eventbooking.serializers import EventVendorAssignmentSerializer
+from notifications.services import NotificationService
+from notifications.models import Notification
+
+
+def _resolve_vendor_for_item_key(session, item_key):
+    """Map a checklist `item_key` back to the vendor that's delivering it.
+    Walks every `EventVendorAssignment` on the session and uses the same
+    `_item_keys_for_vendor_on_session()` helper that the dispatch flow
+    uses, so the lookup is consistent with how rows were created."""
+    for assignment in session.vendor_assignments.select_related(
+        "vendor", "vendor__user_account"
+    ):
+        keys = _item_keys_for_vendor_on_session(session, assignment.vendor)
+        if item_key in keys:
+            return assignment.vendor
+    return None
+
+
+def _notify_vendor_of_rejection(session, item_key, reason, rejected_by):
+    """Push a notification to the vendor when the receiver rejects an item
+    they delivered. The vendor's mobile app gets a foreground WS frame
+    (live) AND an FCM push (offline). Falls through silently if the item
+    can't be mapped back to a vendor user — we never want a notification
+    failure to block the staff member's reject action."""
+    try:
+        vendor = _resolve_vendor_for_item_key(session, item_key)
+        if vendor is None or vendor.user_account is None:
+            return
+        # Pretty label: drop the prefix so the message reads naturally.
+        if ":" in item_key:
+            label = item_key.split(":", 1)[1]
+            if "::" in label:
+                label = label.split("::", 1)[0]
+        else:
+            label = item_key
+
+        booking = getattr(session, "booking", None)
+        booking_name = getattr(booking, "name", "") if booking else ""
+        booking_id = getattr(booking, "id", None) if booking else None
+        rejected_by_name = (
+            rejected_by.get_full_name() or rejected_by.username
+            if rejected_by and rejected_by.is_authenticated
+            else "Staff"
+        )
+
+        NotificationService.notify_user(
+            vendor.user_account,
+            notification_type=Notification.TYPE_VENDOR_RESPONSE,
+            title=f"Item rejected: {label}",
+            message=(
+                f"{rejected_by_name} rejected '{label}'"
+                + (f" for {booking_name}" if booking_name else "")
+                + (f". Reason: {reason}" if reason else ".")
+            ),
+            data={
+                "route": "/vendor/session-detail",
+                "booking_id": booking_id,
+                "session_id": session.id,
+                "item_key": item_key,
+                "reason": reason,
+            },
+        )
+    except Exception:
+        logger.exception(
+            "Failed to notify vendor about rejection of %s on session %s",
+            item_key,
+            getattr(session, "id", None),
+        )
 from notifications.models import Notification
 from notifications.services import NotificationService, iter_admin_recipients
 
@@ -1570,6 +1676,99 @@ class MyVendorAssignmentsView(APIView):
                 "status": True,
                 "message": "Vendor assignments fetched.",
                 "data": EventVendorAssignmentSerializer(assignments, many=True).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class VendorReceiveAllView(APIView):
+    """`POST /event-sessions/<session_id>/vendor-receive/<vendor_id>/`
+
+    Bulk-marks every item belonging to one vendor on the session as
+    received (`SessionChecklistTick(action='received', is_done=True)`).
+    Items the vendor declined per-item, or that the receiver already
+    rejected, are intentionally skipped.
+
+    Receiver-side action — only staff/admin can call this (vendor users
+    can't mark their own delivery as received). Returns the list of
+    item_keys that were touched so the client can update its local state
+    without a follow-up GET."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id, vendor_id):
+        user = request.user
+        is_admin = getattr(user, "is_staff", False) or getattr(
+            user, "is_superuser", False
+        )
+        is_vendor = (
+            hasattr(user, "vendor_profile") and user.vendor_profile is not None
+        )
+        if is_vendor and not is_admin:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Vendors can't mark their own delivery as received.",
+                    "data": {},
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        session = get_object_or_404(EventSession, pk=session_id)
+        if not _user_can_access_session_checklist(user, session):
+            return Response(
+                {
+                    "status": False,
+                    "message": "You can't update this checklist.",
+                    "data": {},
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            assignment = EventVendorAssignment.objects.select_related(
+                "vendor"
+            ).get(session_id=session_id, vendor_id=vendor_id)
+        except EventVendorAssignment.DoesNotExist:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Vendor is not assigned to this session.",
+                    "data": {},
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        declined = set(assignment.declined_item_keys or [])
+        # Skip anything the receiver already flagged as rejected — they
+        # should change the rejected row first if they meant to accept it.
+        rejected_keys = set(
+            SessionChecklistTick.objects.filter(
+                session_id=session_id,
+                action=SessionChecklistTick.ACTION_REJECTED,
+                is_done=True,
+            ).values_list("item_key", flat=True)
+        )
+
+        keys = [
+            k
+            for k in _item_keys_for_vendor_on_session(session, assignment.vendor)
+            if k not in declined and k not in rejected_keys
+        ]
+
+        for key in keys:
+            SessionChecklistTick.objects.update_or_create(
+                session=session,
+                item_key=key,
+                action=SessionChecklistTick.ACTION_RECEIVED,
+                defaults={"is_done": True, "ticked_by": user},
+            )
+
+        return Response(
+            {
+                "status": True,
+                "message": f"Marked {len(keys)} item(s) received.",
+                "data": {"item_keys": keys},
             },
             status=status.HTTP_200_OK,
         )

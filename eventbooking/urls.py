@@ -31,4 +31,12 @@ urlpatterns = [
         VendorAssignmentDispatchView.as_view(),
         name="vendor-assignment-dispatch",
     ),
+    # Receiver-side bulk receive — marks every item belonging to one vendor
+    # on the session as received in one call. Reject single items goes
+    # through the existing /checklist/ endpoint with action='rejected'.
+    path(
+        "event-sessions/<int:session_id>/vendor-receive/<int:vendor_id>/",
+        VendorReceiveAllView.as_view(),
+        name="vendor-receive-all",
+    ),
 ]
