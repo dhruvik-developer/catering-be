@@ -51,14 +51,15 @@ from radha.Utils.permissions import (
 )
 from user.tenanting import provision_tenant_schema
 
-
 logger = logging.getLogger(__name__)
 
 
 class IsPlatformAdmin(BasePermission):
     def has_permission(self, request, view):
         tenant = getattr(request, "tenant", None)
-        is_public = tenant is None or getattr(tenant, "schema_name", "public") == "public"
+        is_public = (
+            tenant is None or getattr(tenant, "schema_name", "public") == "public"
+        )
         return bool(
             request.user
             and request.user.is_authenticated
@@ -369,14 +370,14 @@ class LoginViewSet(generics.GenericAPIView):
             "branch_role": user.branch_role,
             "is_main_tenant_admin": is_main_tenant_admin(user),
             "is_branch_admin": is_branch_admin(user),
-            "branch_profile": BranchProfileSummarySerializer(user.branch_profile).data
-            if getattr(user, "branch_profile", None)
-            else None,
+            "branch_profile": (
+                BranchProfileSummarySerializer(user.branch_profile).data
+                if getattr(user, "branch_profile", None)
+                else None
+            ),
             "permissions": sorted(get_effective_permission_codes(user)),
             "tenant": (
-                ClientSummarySerializer(tenant).data
-                if tenant is not None
-                else None
+                ClientSummarySerializer(tenant).data if tenant is not None else None
             ),
             "tokens": user.tokens,
         }
@@ -406,9 +407,7 @@ class LoginViewSet(generics.GenericAPIView):
         try:
             request.tenant = tenant
             with tenant_context(tenant):
-                return bool(
-                    authenticate(request, username=username, password=password)
-                )
+                return bool(authenticate(request, username=username, password=password))
         finally:
             self._restore_request_tenant(request, previous_tenant)
 
@@ -615,18 +614,26 @@ class UserCreateAPIView(generics.GenericAPIView):
             if is_main_tenant_admin(self.request.user):
                 return queryset
             branch_id = getattr(self.request.user, "branch_profile_id", None)
-            return queryset.filter(branch_profile_id=branch_id) if branch_id else queryset.none()
+            return (
+                queryset.filter(branch_profile_id=branch_id)
+                if branch_id
+                else queryset.none()
+            )
         if self.request.user.is_superuser:
             return queryset.select_related("branch_profile").order_by("username")
         if self.request.user.is_staff and self.request.user.tenant_id:
-            return queryset.filter(tenant=self.request.user.tenant).select_related(
-                "branch_profile"
-            ).order_by("username")
+            return (
+                queryset.filter(tenant=self.request.user.tenant)
+                .select_related("branch_profile")
+                .order_by("username")
+            )
         return queryset.none()
 
     def post(self, request):
         if not self._can_manage_users(request.user):
-            raise PermissionDenied("Only platform admin or tenant admin can create this resource.")
+            raise PermissionDenied(
+                "Only platform admin or tenant admin can create this resource."
+            )
 
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
@@ -687,12 +694,10 @@ class BranchProfileListCreateAPIView(generics.GenericAPIView):
             branch.manager.save(update_fields=["branch_profile"])
 
     def get_queryset(self):
-        queryset = (
-            BranchProfile.objects.select_related(
-                "manager",
-                "created_by",
-            ).annotate(users_count=Count("users"))
-        )
+        queryset = BranchProfile.objects.select_related(
+            "manager",
+            "created_by",
+        ).annotate(users_count=Count("users"))
         if self._is_tenant_admin(self.request):
             return queryset.order_by("-is_main", "city", "name")
 
@@ -771,7 +776,9 @@ class BranchProfileDetailAPIView(generics.GenericAPIView):
     def get_object(self, request, id):
         queryset = self.get_queryset()
         if not self._is_tenant_admin(request):
-            queryset = queryset.filter(id=getattr(request.user, "branch_profile_id", None))
+            queryset = queryset.filter(
+                id=getattr(request.user, "branch_profile_id", None)
+            )
         return get_object_or_404(queryset, id=id)
 
     def get(self, request, id):
@@ -849,7 +856,11 @@ class BranchProfileDetailAPIView(generics.GenericAPIView):
 
         branch.delete()
         return Response(
-            {"status": True, "message": "Branch profile deleted successfully.", "data": {}},
+            {
+                "status": True,
+                "message": "Branch profile deleted successfully.",
+                "data": {},
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -868,7 +879,9 @@ class BranchProfileUsersAPIView(generics.GenericAPIView):
     def get_branch(self, request, id):
         queryset = BranchProfile.objects.all()
         if not is_main_tenant_admin(request.user):
-            queryset = queryset.filter(id=getattr(request.user, "branch_profile_id", None))
+            queryset = queryset.filter(
+                id=getattr(request.user, "branch_profile_id", None)
+            )
         return get_object_or_404(queryset, id=id)
 
     def get(self, request, id):
@@ -913,11 +926,11 @@ class UserBranchAssignmentAPIView(generics.GenericAPIView):
                 "data": {
                     "user_id": str(user.id),
                     "username": user.username,
-                    "branch_profile": BranchProfileSummarySerializer(
-                        user.branch_profile
-                    ).data
-                    if user.branch_profile
-                    else None,
+                    "branch_profile": (
+                        BranchProfileSummarySerializer(user.branch_profile).data
+                        if user.branch_profile
+                        else None
+                    ),
                 },
             },
             status=status.HTTP_200_OK,
@@ -943,11 +956,11 @@ class UserBranchAssignmentAPIView(generics.GenericAPIView):
                 "data": {
                     "user_id": str(user.id),
                     "username": user.username,
-                    "branch_profile": BranchProfileSummarySerializer(
-                        user.branch_profile
-                    ).data
-                    if user.branch_profile
-                    else None,
+                    "branch_profile": (
+                        BranchProfileSummarySerializer(user.branch_profile).data
+                        if user.branch_profile
+                        else None
+                    ),
                 },
             },
             status=status.HTTP_200_OK,
@@ -1036,9 +1049,9 @@ class SubscriptionPlanDetailAPIView(generics.GenericAPIView):
 
 class TenantListCreateAPIView(generics.GenericAPIView):
     serializer_class = TenantSerializer
-    queryset = Tenant.objects.select_related("subscription_plan", "created_by").prefetch_related(
-        "enabled_modules"
-    )
+    queryset = Tenant.objects.select_related(
+        "subscription_plan", "created_by"
+    ).prefetch_related("enabled_modules")
     permission_classes = [IsPlatformAdmin]
 
     def get(self, request):
@@ -1087,9 +1100,9 @@ class TenantListCreateAPIView(generics.GenericAPIView):
 
 class TenantDetailAPIView(generics.GenericAPIView):
     serializer_class = TenantSerializer
-    queryset = Tenant.objects.select_related("subscription_plan", "created_by").prefetch_related(
-        "enabled_modules"
-    )
+    queryset = Tenant.objects.select_related(
+        "subscription_plan", "created_by"
+    ).prefetch_related("enabled_modules")
     permission_classes = [IsPlatformAdmin]
 
     def get_object(self, id):
@@ -1163,7 +1176,9 @@ class MyTenantAPIView(generics.GenericAPIView):
     serializer_class = TenantSummarySerializer
 
     def get(self, request):
-        tenant = getattr(request, "tenant", None) or getattr(request.user, "tenant", None)
+        tenant = getattr(request, "tenant", None) or getattr(
+            request.user, "tenant", None
+        )
         if tenant is None:
             return Response(
                 {
@@ -1255,7 +1270,9 @@ class PasswordResetRequestAPIView(generics.GenericAPIView):
                         {
                             "uid": uid,
                             "token": token,
-                            "tenant": tenant.schema_name if tenant is not None else None,
+                            "tenant": (
+                                tenant.schema_name if tenant is not None else None
+                            ),
                         }
                     )
 
@@ -1396,7 +1413,10 @@ class ChangePasswordAPIView(generics.GenericAPIView):
         )
         if not allowed:
             return Response(
-                {"status": False, "message": "You do not have permission to change this password."},
+                {
+                    "status": False,
+                    "message": "You do not have permission to change this password.",
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
         if is_self and not request.user.check_password(
@@ -1421,7 +1441,9 @@ class ChangePasswordAPIView(generics.GenericAPIView):
             return Response(
                 {
                     "status": False,
-                    "message": error_messages[0] if error_messages else "Invalid password.",
+                    "message": (
+                        error_messages[0] if error_messages else "Invalid password."
+                    ),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -1470,9 +1492,7 @@ class BusinessProfileLanguageAPIView(generics.GenericAPIView):
     def get(self, request):
         profile = self.get_profile()
         selected_language = (
-            profile.selected_language
-            if profile
-            else BusinessProfile.LANGUAGE_ENGLISH
+            profile.selected_language if profile else BusinessProfile.LANGUAGE_ENGLISH
         )
         return Response(
             {

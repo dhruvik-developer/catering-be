@@ -9,6 +9,7 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from eventbooking.models import EventVendorAssignment
 from eventstaff.models import EventStaffAssignment
 
 from .models import Notification
@@ -55,5 +56,50 @@ def on_event_staff_assigned(sender, instance, created, **kwargs):
             "event_id": booking.id if booking else None,
             "session_id": session.id if session else None,
             "assignment_id": instance.id,
+        },
+    )
+
+
+@receiver(post_save, sender=EventVendorAssignment)
+def on_event_vendor_assigned(sender, instance, created, **kwargs):
+    """Fire a notification when a vendor is freshly attached to a session.
+
+    Vendor assignment rows are auto-created from `EventSession.assigned_vendors`
+    and `EventSession.outsourced_items[*].vendor` whenever an admin saves a
+    booking, so this signal is the natural choke-point. Same `user_account`
+    contract as the staff signal — vendors without a login simply get skipped
+    (they get phoned instead).
+    """
+    if not created:
+        return
+
+    vendor = instance.vendor
+    user = getattr(vendor, "user_account", None)
+    if user is None or not user.is_active:
+        return
+
+    session = instance.session
+    booking = getattr(session, "booking", None) if session else None
+    booking_name = booking.name if booking else "an event"
+    event_date = session.event_date if session else None
+    date_label = event_date.strftime("%d %b %Y") if event_date else ""
+
+    message = f"You have been assigned to supply for {booking_name}"
+    if date_label:
+        message = f"{message} on {date_label}."
+    else:
+        message = f"{message}."
+
+    NotificationService.notify_user(
+        user,
+        notification_type=Notification.TYPE_VENDOR_ASSIGNED,
+        title="New Vendor Assignment",
+        message=message,
+        data={
+            "route": "/event-bookings/detail",
+            "event_id": booking.id if booking else None,
+            "session_id": session.id if session else None,
+            "assignment_id": instance.id,
+            "vendor_id": getattr(vendor, "id", None),
         },
     )

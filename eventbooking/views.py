@@ -44,6 +44,17 @@ def _restrict_to_assigned_staff(queryset, request):
     user = request.user
     if not getattr(user, "is_authenticated", False):
         return queryset.none()
+
+    # Vendor users see a different slice: bookings where their vendor record
+    # has a non-declined EventVendorAssignment on any session. Same shape as
+    # the staff filter below — admins (no assigned_to_me flag) still see
+    # everything in the unfiltered view.
+    if hasattr(user, "vendor_profile") and user.vendor_profile is not None:
+        return queryset.filter(
+            sessions__vendor_assignments__vendor__user_account=user,
+            sessions__vendor_assignments__response_status__in=["pending", "accepted"],
+        ).distinct()
+
     # Both conditions sit in the same .filter() call on purpose — Django
     # joins them onto the SAME staff_assignment row, so the result is
     # "bookings where there is at least one assignment that is BOTH mine AND
@@ -1066,15 +1077,24 @@ from eventbooking.serializers import SessionChecklistTickSerializer
 
 def _user_can_access_session_checklist(user, session):
     """Allowed callers: admins, OR staff with at least one non-declined
-    assignment on the session. Vendors aren't covered yet — when vendor
-    accept/decline lands, mirror the same check here."""
+    staff assignment on the session, OR vendors with at least one
+    non-declined vendor assignment. Vendor's `delivered` ticks go through
+    this same endpoint."""
     if not getattr(user, "is_authenticated", False):
         return False
     if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
         return True
-    return (
+    if (
         session.staff_assignments.filter(
             staff__user_account=user,
+        )
+        .exclude(response_status="declined")
+        .exists()
+    ):
+        return True
+    return (
+        session.vendor_assignments.filter(
+            vendor__user_account=user,
         )
         .exclude(response_status="declined")
         .exists()
@@ -1156,6 +1176,315 @@ class SessionChecklistView(APIView):
                 "status": True,
                 "message": "Checklist tick saved.",
                 "data": SessionChecklistTickSerializer(tick).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Vendor accept / decline / dispatch
+# ---------------------------------------------------------------------------
+
+from django.utils import timezone as dj_timezone
+from datetime import datetime
+from eventbooking.models import EventVendorAssignment, EventVendorAssignmentResponse
+from eventbooking.serializers import EventVendorAssignmentSerializer
+from notifications.models import Notification
+from notifications.services import NotificationService, iter_admin_recipients
+
+
+def _notify_admins_of_vendor_response(assignment, response_value, reason, item_key):
+    """Fan a vendor accept/decline out to every catering admin. Per-item
+    responses (item_key set) are still surfaced because the admin still
+    benefits from seeing "Vendor X declined Pizza for Session 2" — the body
+    just calls out the item so the admin doesn't think the whole session
+    was rejected."""
+    vendor = assignment.vendor
+    session = assignment.session
+    booking = getattr(session, "booking", None) if session else None
+    vendor_name = getattr(vendor, "name", None) or "A vendor"
+    branch_id = getattr(vendor, "branch_profile_id", None)
+
+    accepted = response_value == "accepted"
+    scope = f" for '{item_key}'" if item_key else ""
+    booking_label = booking.name if booking else "an event"
+
+    if accepted:
+        title = "Vendor accepted assignment"
+        message = f"{vendor_name} accepted{scope} on {booking_label}."
+    else:
+        title = "Vendor declined assignment"
+        base = f"{vendor_name} declined{scope} on {booking_label}."
+        message = f"{base} Reason: {reason}" if reason else base
+
+    data_payload = {
+        "route": f"/view-order-details/{booking.id}" if booking else "",
+        "event_id": booking.id if booking else None,
+        "session_id": session.id if session else None,
+        "assignment_id": assignment.id,
+        "response": response_value,
+        "reason": reason or "",
+        "item_key": item_key or "",
+        "vendor_id": getattr(vendor, "id", None),
+        "vendor_name": vendor_name,
+    }
+    for admin in iter_admin_recipients(branch_id):
+        NotificationService.notify_user(
+            admin,
+            notification_type=Notification.TYPE_VENDOR_RESPONSE,
+            title=title,
+            message=message,
+            data=data_payload,
+        )
+
+
+def _parse_iso_datetime(value):
+    """Accept ISO-8601 strings (with or without trailing Z), epoch seconds,
+    or `None`. Returns a timezone-aware datetime or None. Tolerant on purpose
+    — mobile clients send a variety of shapes depending on platform."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return dj_timezone.make_aware(datetime.fromtimestamp(float(value)))
+        except (ValueError, OSError):
+            return None
+    if isinstance(value, str):
+        raw = value.strip()
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+        if dj_timezone.is_naive(parsed):
+            parsed = dj_timezone.make_aware(parsed)
+        return parsed
+    return None
+
+
+class _VendorAssignmentBaseView(APIView):
+    """Shared lookup logic — pulls an `EventVendorAssignment` by id and
+    verifies the request.user owns the vendor it points at. Anything else
+    returns 403 so a vendor can't respond on behalf of another vendor."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_assignment_for_user(self, pk, user):
+        try:
+            assignment = EventVendorAssignment.objects.select_related(
+                "vendor", "vendor__user_account", "session", "session__booking"
+            ).get(pk=pk)
+        except EventVendorAssignment.DoesNotExist:
+            return None, Response(
+                {"status": False, "message": "Vendor assignment not found.", "data": {}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        is_admin = getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        vendor_user_id = getattr(assignment.vendor, "user_account_id", None)
+        if not is_admin and vendor_user_id != user.id:
+            return None, Response(
+                {"status": False, "message": "Not your assignment.", "data": {}},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return assignment, None
+
+
+class VendorAssignmentRespondView(_VendorAssignmentBaseView):
+    """`POST /event-vendor-assignments/<id>/respond/`
+
+    Body (session-level):  `{ "response": "accepted"|"declined", "reason": "..." }`
+    Body (per-item):       `{ "response": "accepted"|"declined", "item_key": "...", "reason": "..." }`
+
+    For per-item declines, the assignment's overall response_status is NOT
+    flipped — partial decline is stored in `declined_item_keys` so the
+    vendor can still accept the rest of the session. A history row is
+    appended either way."""
+
+    def post(self, request, pk):
+        assignment, error = self._get_assignment_for_user(pk, request.user)
+        if error is not None:
+            return error
+
+        response_value = str(request.data.get("response", "")).strip().lower()
+        item_key = str(request.data.get("item_key", "")).strip()
+        reason = str(request.data.get("reason", "")).strip()
+
+        if response_value not in {"accepted", "declined"}:
+            return Response(
+                {
+                    "status": False,
+                    "message": "`response` must be 'accepted' or 'declined'.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if response_value == "declined" and not reason:
+            return Response(
+                {
+                    "status": False,
+                    "message": "A reason is required when declining.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = dj_timezone.now()
+        if item_key:
+            # Per-item: update `declined_item_keys` only. Session-level
+            # response_status is left alone — see docstring above.
+            declined = list(assignment.declined_item_keys or [])
+            if response_value == "declined":
+                if item_key not in declined:
+                    declined.append(item_key)
+            else:
+                declined = [k for k in declined if k != item_key]
+            assignment.declined_item_keys = declined
+            assignment.save(update_fields=["declined_item_keys", "updated_at"])
+        else:
+            # Session-level: flip response_status. Clear decline_reason on
+            # accept so a previously-declined-then-re-accepted row reads
+            # clean for admins.
+            assignment.response_status = response_value
+            assignment.decline_reason = reason if response_value == "declined" else ""
+            assignment.responded_at = now
+            assignment.save(
+                update_fields=[
+                    "response_status",
+                    "decline_reason",
+                    "responded_at",
+                    "updated_at",
+                ]
+            )
+
+        EventVendorAssignmentResponse.objects.create(
+            assignment=assignment,
+            item_key=item_key,
+            response=response_value,
+            reason=reason,
+            responded_by=request.user if request.user.is_authenticated else None,
+            responded_at=now,
+        )
+
+        # Alert the catering admins so vendor responses surface in the bell.
+        # Best-effort — a failure here must not break the vendor's response.
+        try:
+            _notify_admins_of_vendor_response(
+                assignment, response_value, reason, item_key
+            )
+        except Exception:  # noqa: BLE001 — notification is best-effort
+            logger.exception(
+                "Failed to dispatch vendor-response admin notification "
+                "(assignment=%s)",
+                assignment.id,
+            )
+
+        return Response(
+            {
+                "status": True,
+                "message": (
+                    "Per-item response saved." if item_key else "Response saved."
+                ),
+                "data": EventVendorAssignmentSerializer(assignment).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class VendorAssignmentDispatchView(_VendorAssignmentBaseView):
+    """`POST /event-vendor-assignments/<id>/dispatch/`
+
+    Body: `{ "driver_name": "...", "driver_phone": "...", "driver_eta": "..." }`
+
+    Saves the driver/dispatch details. `dispatched_at` is auto-stamped to
+    now. Per-item dispatch ticks (one per ingredient / outsourced item) are
+    still toggled through the existing SessionChecklistView so the receiver
+    sees the same row going green there."""
+
+    def post(self, request, pk):
+        assignment, error = self._get_assignment_for_user(pk, request.user)
+        if error is not None:
+            return error
+
+        if assignment.response_status == EventVendorAssignment.RESPONSE_DECLINED:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Cannot dispatch a declined assignment.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        driver_name = str(request.data.get("driver_name", "")).strip()
+        driver_phone = str(request.data.get("driver_phone", "")).strip()
+        eta = _parse_iso_datetime(request.data.get("driver_eta"))
+
+        if not driver_name or not driver_phone:
+            return Response(
+                {
+                    "status": False,
+                    "message": "Driver name and phone are required.",
+                    "data": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        assignment.driver_name = driver_name
+        assignment.driver_phone = driver_phone
+        assignment.driver_eta = eta
+        assignment.dispatched_at = dj_timezone.now()
+        assignment.save(
+            update_fields=[
+                "driver_name",
+                "driver_phone",
+                "driver_eta",
+                "dispatched_at",
+                "updated_at",
+            ]
+        )
+
+        return Response(
+            {
+                "status": True,
+                "message": "Dispatch details saved.",
+                "data": EventVendorAssignmentSerializer(assignment).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class MyVendorAssignmentsView(APIView):
+    """`GET /event-vendor-assignments/mine/` — flat list of every vendor
+    assignment for the logged-in vendor user. Lets the mobile app render the
+    "To accept / Today / Upcoming" cards without flattening sessions on the
+    client. Admins get an empty list here on purpose; they have the full
+    bookings list view for the same data."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if not (hasattr(user, "vendor_profile") and user.vendor_profile is not None):
+            return Response(
+                {"status": True, "message": "Not a vendor user.", "data": []},
+                status=status.HTTP_200_OK,
+            )
+        assignments = (
+            EventVendorAssignment.objects.select_related(
+                "session",
+                "session__booking",
+                "vendor",
+            )
+            .filter(vendor__user_account=user)
+            .order_by("session__event_date", "session__event_time")
+        )
+        return Response(
+            {
+                "status": True,
+                "message": "Vendor assignments fetched.",
+                "data": EventVendorAssignmentSerializer(assignments, many=True).data,
             },
             status=status.HTTP_200_OK,
         )

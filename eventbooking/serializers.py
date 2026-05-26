@@ -50,6 +50,58 @@ class IngredientVendorAssignmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["created_at"]
 
+class EventVendorAssignmentSerializer(serializers.ModelSerializer):
+    """Wire shape for the vendor-side workflow row. Used both standalone
+    (`/event-vendor-assignments/...`) and nested under `EventSession.vendor_assignments`
+    so the Flutter app can render Accept/Decline + dispatch state without
+    a follow-up round-trip."""
+
+    vendor_name = serializers.CharField(source="vendor.name", read_only=True)
+    vendor_mobile = serializers.CharField(source="vendor.mobile_no", read_only=True)
+    booking_id = serializers.IntegerField(source="session.booking_id", read_only=True)
+    booking_name = serializers.CharField(source="session.booking.name", read_only=True)
+    event_date = serializers.DateField(
+        source="session.event_date", read_only=True, format="%d-%m-%Y"
+    )
+    event_time = serializers.CharField(source="session.event_time", read_only=True)
+    event_address = serializers.CharField(source="session.event_address", read_only=True)
+    is_mine = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EventVendorAssignment
+        fields = (
+            "id",
+            "session_id",
+            "booking_id",
+            "booking_name",
+            "event_date",
+            "event_time",
+            "event_address",
+            "vendor",
+            "vendor_name",
+            "vendor_mobile",
+            "response_status",
+            "decline_reason",
+            "responded_at",
+            "declined_item_keys",
+            "driver_name",
+            "driver_phone",
+            "driver_eta",
+            "dispatched_at",
+            "is_mine",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_is_mine(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
+        if request is None or not getattr(request.user, "is_authenticated", False):
+            return False
+        vendor_user_id = getattr(obj.vendor, "user_account_id", None)
+        return bool(vendor_user_id) and vendor_user_id == request.user.id
+
+
 class EventSessionSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     session_id = serializers.IntegerField(source="id", read_only=True)
@@ -59,6 +111,8 @@ class EventSessionSerializer(serializers.ModelSerializer):
     )
     managers_assigned = serializers.SerializerMethodField()
     summoned_staff_details = serializers.SerializerMethodField()
+    vendor_assignments = serializers.SerializerMethodField()
+    my_vendor_assignment = serializers.SerializerMethodField()
     ground_management = serializers.JSONField(required=False, write_only=True)
     outsourced_items = serializers.JSONField(required=False, default=list)
     order_local_ingredients = serializers.JSONField(required=False, default=dict)
@@ -80,6 +134,8 @@ class EventSessionSerializer(serializers.ModelSerializer):
             "waiter_service",
             "managers_assigned",
             "summoned_staff_details",
+            "vendor_assignments",
+            "my_vendor_assignment",
             "assigned_vendors",
             "outsourced_items",
             "order_local_ingredients",
@@ -209,6 +265,44 @@ class EventSessionSerializer(serializers.ModelSerializer):
             if assignment.staff.staff_type in ["Agency", "Contract"]:
                 summoned_staff.append(self._assignment_payload(assignment, role_name))
         return summoned_staff
+
+    def get_vendor_assignments(self, obj):
+        """Every vendor row on the session. Admins see all; vendors viewing
+        their own portal (assigned_to_me=true) only see their own row to
+        avoid leaking other vendors' decline reasons / driver info."""
+        request = self.context.get("request") if hasattr(self, "context") else None
+        qs = obj.vendor_assignments.select_related("vendor", "vendor__user_account")
+        if self._is_assignee_view(request):
+            viewer_id = (
+                request.user.id
+                if request is not None
+                and getattr(request.user, "is_authenticated", False)
+                else None
+            )
+            qs = qs.filter(vendor__user_account_id=viewer_id)
+        return EventVendorAssignmentSerializer(
+            qs, many=True, context=self.context
+        ).data
+
+    def get_my_vendor_assignment(self, obj):
+        """Shortcut for the mobile vendor portal: the single row owned by
+        the logged-in vendor, or None. Saves the client a flatten step."""
+        request = self.context.get("request") if hasattr(self, "context") else None
+        if request is None or not getattr(request.user, "is_authenticated", False):
+            return None
+        user = request.user
+        if not (hasattr(user, "vendor_profile") and user.vendor_profile is not None):
+            return None
+        row = (
+            obj.vendor_assignments.select_related(
+                "vendor", "vendor__user_account"
+            )
+            .filter(vendor__user_account=user)
+            .first()
+        )
+        if row is None:
+            return None
+        return EventVendorAssignmentSerializer(row, context=self.context).data
 
     def get_ground_management(self, obj):
         grouped = defaultdict(list)

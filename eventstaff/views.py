@@ -12,6 +12,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from eventbooking.models import EventBooking
+from notifications.models import Notification
+from notifications.services import NotificationService, iter_admin_recipients
 from radha.Utils.permissions import IsAdminUserOrReadOnly
 from user.branching import (
     ensure_object_in_user_branch,
@@ -523,6 +525,20 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
             responded_at=now,
         )
 
+        # Alert the catering admins so the response surfaces in their Alerts
+        # bell without having to refresh the order page. Errors here must NOT
+        # break the staff member's accept/decline flow — wrap in try/except so
+        # a notification glitch can't 500 the API.
+        try:
+            self._notify_admins_of_staff_response(assignment, response_value, reason)
+        except Exception:  # noqa: BLE001 — notification is best-effort
+            import logging
+            logging.getLogger("notifications").exception(
+                "Failed to dispatch staff-response admin notification "
+                "(assignment=%s)",
+                assignment.id,
+            )
+
         serializer = self.get_serializer(assignment)
         return Response(
             {
@@ -536,6 +552,51 @@ class EventStaffAssignmentViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @staticmethod
+    def _notify_admins_of_staff_response(assignment, response_value, reason):
+        """Fan a single accept/decline action out to every admin who should
+        know. Recipients = main tenant admins + branch admins of the staff
+        member's branch (mirrors `iter_admin_recipients`)."""
+        staff = assignment.staff
+        session = assignment.session
+        booking = getattr(session, "booking", None) if session else None
+        staff_name = getattr(staff, "name", None) or "A staff member"
+        branch_id = getattr(staff, "branch_profile_id", None)
+
+        if response_value == EventStaffAssignment.RESPONSE_ACCEPTED:
+            title = "Staff accepted assignment"
+            message = (
+                f"{staff_name} accepted the assignment for "
+                f"{booking.name if booking else 'an event'}."
+            )
+        else:
+            title = "Staff declined assignment"
+            base = (
+                f"{staff_name} declined the assignment for "
+                f"{booking.name if booking else 'an event'}."
+            )
+            message = f"{base} Reason: {reason}" if reason else base
+
+        data_payload = {
+            # Admin deep-link target on the React app.
+            "route": f"/view-order-details/{booking.id}" if booking else "",
+            "event_id": booking.id if booking else None,
+            "session_id": session.id if session else None,
+            "assignment_id": assignment.id,
+            "response": response_value,
+            "reason": reason or "",
+            "staff_id": getattr(staff, "id", None),
+            "staff_name": staff_name,
+        }
+        for admin in iter_admin_recipients(branch_id):
+            NotificationService.notify_user(
+                admin,
+                notification_type=Notification.TYPE_STAFF_RESPONSE,
+                title=title,
+                message=message,
+                data=data_payload,
+            )
 
     @action(detail=False, methods=["get"], url_path="event-summary")
     def event_summary(self, request):

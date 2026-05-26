@@ -14,4 +14,21 @@ urlpatterns = [
         SessionChecklistView.as_view(),
         name="session-checklist",
     ),
+    # Vendor portal — accept/decline (session OR per-item) and dispatch
+    # details. See views.VendorAssignmentRespondView for request shapes.
+    path(
+        "event-vendor-assignments/mine/",
+        MyVendorAssignmentsView.as_view(),
+        name="vendor-assignment-mine",
+    ),
+    path(
+        "event-vendor-assignments/<int:pk>/respond/",
+        VendorAssignmentRespondView.as_view(),
+        name="vendor-assignment-respond",
+    ),
+    path(
+        "event-vendor-assignments/<int:pk>/dispatch/",
+        VendorAssignmentDispatchView.as_view(),
+        name="vendor-assignment-dispatch",
+    ),
 ]

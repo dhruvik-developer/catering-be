@@ -55,11 +55,20 @@ class Notification(models.Model):
     TYPE_EVENT_ASSIGNED = "event_assigned"
     TYPE_EVENT_UPDATED = "event_updated"
     TYPE_EVENT_CANCELLED = "event_cancelled"
+    # Admin-facing response alerts. Fired when an assigned staff member or
+    # vendor accepts/declines from the mobile app, so the catering owner sees
+    # the action in the Alerts dropdown without polling the order page.
+    TYPE_STAFF_RESPONSE = "staff_response"
+    TYPE_VENDOR_ASSIGNED = "vendor_assigned"
+    TYPE_VENDOR_RESPONSE = "vendor_response"
     TYPE_GENERIC = "generic"
     TYPE_CHOICES = (
         (TYPE_EVENT_ASSIGNED, "Event assigned"),
         (TYPE_EVENT_UPDATED, "Event updated"),
         (TYPE_EVENT_CANCELLED, "Event cancelled"),
+        (TYPE_STAFF_RESPONSE, "Staff response"),
+        (TYPE_VENDOR_ASSIGNED, "Vendor assigned"),
+        (TYPE_VENDOR_RESPONSE, "Vendor response"),
         (TYPE_GENERIC, "Generic"),
     )
 

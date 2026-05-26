@@ -40,6 +40,36 @@ _FCM_EXECUTOR = ThreadPoolExecutor(
 atexit.register(lambda: _FCM_EXECUTOR.shutdown(wait=False, cancel_futures=False))
 
 
+def iter_admin_recipients(branch_profile_id=None):
+    """Yield the admin users who should receive a tenant-wide alert.
+
+    Resolution rules — mirror the same scoping the rest of the codebase uses
+    for branch-aware permissions:
+      - Every `main_admin` user is always included (they oversee all
+        branches).
+      - `branch_admin` users are included only when their branch matches
+        `branch_profile_id`. If the caller doesn't know the branch (None),
+        every branch_admin is yielded so we don't silently miss anyone.
+
+    Inactive users are skipped so an offboarded admin doesn't keep getting
+    pushes on a stale FCM token. The caller stays inside the tenant schema —
+    this helper just reads; it doesn't open a schema_context of its own.
+    """
+    qs = User.objects.filter(is_active=True, is_staff=True)
+    main = qs.filter(branch_role="main_admin")
+    branch = qs.filter(branch_role="branch_admin")
+    if branch_profile_id is not None:
+        branch = branch.filter(branch_profile_id=branch_profile_id)
+    # Distinct on id to defend against the unlikely case where someone
+    # configured a user with both roles via a future schema change.
+    seen = set()
+    for user in list(main) + list(branch):
+        if user.id in seen:
+            continue
+        seen.add(user.id)
+        yield user
+
+
 def _current_schema_name() -> str:
     """Reads the tenant schema the calling code is currently inside.
 
