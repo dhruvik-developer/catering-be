@@ -93,40 +93,50 @@ class TenantJWTAuthMiddleware(BaseMiddleware):
         scope["tenant"] = None
         scope["schema_name"] = None
 
+        host = _extract_host(scope)
         token = _extract_token(scope)
         if not token:
+            logger.warning("WS auth: missing token (host=%s)", host)
             return await super().__call__(scope, receive, send)
 
         try:
             validated = UntypedToken(token)
         except (InvalidToken, TokenError) as exc:
-            logger.info("WS auth: invalid token (%s)", exc)
+            logger.warning("WS auth: invalid token (host=%s err=%s)", host, exc)
             return await super().__call__(scope, receive, send)
 
         token_schema = validated.get("schema_name") or ""
         user_id = validated.get("user_id")
 
-        host = _extract_host(scope)
         tenant = await _resolve_tenant(host)
 
         if tenant is None:
-            logger.info("WS auth: no tenant for host %s", host)
+            logger.warning(
+                "WS auth: no tenant row for host=%s (check tenancy_domain table)",
+                host,
+            )
             return await super().__call__(scope, receive, send)
 
         if token_schema and token_schema != tenant.schema_name:
-            logger.info(
-                "WS auth: token schema %s != request schema %s",
+            logger.warning(
+                "WS auth: token schema=%s != tenant schema=%s for host=%s",
                 token_schema,
                 tenant.schema_name,
+                host,
             )
             return await super().__call__(scope, receive, send)
 
         if not getattr(tenant, "has_active_subscription", True):
-            logger.info("WS auth: tenant %s not active", tenant.schema_name)
+            logger.warning("WS auth: tenant %s not active", tenant.schema_name)
             return await super().__call__(scope, receive, send)
 
         user = await _resolve_user(tenant.schema_name, user_id)
         if user.is_anonymous:
+            logger.warning(
+                "WS auth: user_id=%s not found / inactive in schema=%s",
+                user_id,
+                tenant.schema_name,
+            )
             return await super().__call__(scope, receive, send)
 
         scope["user"] = user
