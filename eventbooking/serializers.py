@@ -164,15 +164,23 @@ class EventSessionSerializer(serializers.ModelSerializer):
         """True when this row should disappear from the staff-portal view.
 
         Hide rules (only when the request carries `assigned_to_me=true`):
-          1. Anything that doesn't belong to the viewer at all — they're not
-             interested in other staff's assignments on the same booking.
-          2. Their own declined rows — once they say no, the row drops out of
-             their UI (admins still see it with the reason for reassignment).
+          1. For **personal** assignments (Fixed staff / Managers), hide
+             every row that doesn't belong to the viewer — one manager
+             shouldn't see another manager's pending/declined state.
+          2. For **supply contracts** (Agency / Contract staff_type), never
+             hide. Those are service suppliers — every assigned manager
+             needs to know "X agency is bringing 30 waiters", regardless
+             of whether the agency itself has a login account.
+          3. The viewer's own declined row drops out of their UI (admins
+             still see it with the reason for reassignment).
 
         Admins (no `assigned_to_me` flag on the request) get everything as
         before."""
         if not self._is_assignee_view(request):
             return False
+
+        staff_type = getattr(assignment.staff, "staff_type", "") or ""
+        is_supply_contract = staff_type in ("Agency", "Contract")
 
         viewer_id = (
             request.user.id
@@ -182,11 +190,16 @@ class EventSessionSerializer(serializers.ModelSerializer):
         staff_user_id = getattr(assignment.staff, "user_account_id", None)
         is_mine = bool(staff_user_id) and staff_user_id == viewer_id
 
-        # Rule 1: someone else's assignment — hide.
-        if not is_mine:
+        # Rule 3: viewer's own declined personal row — hide.
+        if is_mine and assignment.response_status == "declined":
             return True
-        # Rule 2: mine but declined — hide.
-        if assignment.response_status == "declined":
+
+        # Rule 2: supply contracts are public to everyone on the booking.
+        if is_supply_contract:
+            return False
+
+        # Rule 1: personal assignment owned by someone else — hide.
+        if not is_mine:
             return True
         return False
 
