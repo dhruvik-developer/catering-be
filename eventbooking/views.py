@@ -581,7 +581,11 @@ class EventBookingViewSet(generics.GenericAPIView):
                 "sessions__staff_assignments__role_at_event",
                 "sessions__ground_requirements__ground_item__category",
             )
-            .filter(status__in=["confirm", "completed"])
+            # `done` is the admin's terminal "wrapped up" status (separate
+            # from `completed` which the system can also write). Include it
+            # so closed bookings still appear in the staff/vendor list with
+            # a "Completed" badge instead of silently disappearing.
+            .filter(status__in=["confirm", "completed", "done"])
             .order_by("-date")
         )
         if requested_session_id:
