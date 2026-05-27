@@ -243,6 +243,12 @@ class EventSessionSerializer(serializers.ModelSerializer):
             "responded_at": assignment.responded_at,
             "is_mine": bool(staff_user_id) and staff_user_id == viewer_id,
             "response_history": history,
+            # True when the staff/manager has a linked login user_account —
+            # i.e. they can actually accept/decline from the mobile app.
+            # Without a login, response_status sits at its "pending" default
+            # forever (since there's no one to flip it), so the React admin
+            # uses this flag to suppress the misleading status chip.
+            "has_user_account": bool(staff_user_id),
         }
 
     def get_managers_assigned(self, obj):
