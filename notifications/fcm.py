@@ -117,9 +117,7 @@ def send_multicast(
                 body=body,
                 icon="/icons/icon-192.png",
             ),
-            fcm_options=messaging.WebpushFCMOptions(
-                link=data_payload.get("route", "/"),
-            ),
+            fcm_options=webpush_fcm_options,
         ),
     )
 
