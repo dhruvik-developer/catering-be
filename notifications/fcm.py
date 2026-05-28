@@ -82,6 +82,18 @@ def send_multicast(
     # would raise ValueError deep inside the SDK.
     data_payload = {k: str(v) for k, v in (data or {}).items()}
 
+    # Webpush `link` MUST be an absolute HTTPS URL or the SDK refuses to encode
+    # the WHOLE multicast (so even Android/iOS tokens get nothing). Our `route`
+    # is an in-app relative path the mobile app consumes from the data payload,
+    # so only attach it as a browser deep-link when it's already a full HTTPS
+    # URL; otherwise omit fcm_options.
+    route = str(data_payload.get("route", ""))
+    webpush_fcm_options = (
+        messaging.WebpushFCMOptions(link=route)
+        if route.startswith("https://")
+        else None
+    )
+
     message = messaging.MulticastMessage(
         tokens=tokens,
         notification=messaging.Notification(title=title, body=body),
