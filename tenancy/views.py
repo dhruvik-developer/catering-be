@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.db import connection
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
@@ -144,6 +145,31 @@ class ClientDetailAPIView(generics.GenericAPIView):
             {
                 "status": True,
                 "message": "Tenant updated successfully.",
+                "data": self.get_serializer(client).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, id):
+        client = self.get_object(id)
+        if client.schema_name == "public":
+            return Response(
+                {
+                    "status": False,
+                    "message": "The public tenant cannot be cancelled.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if client.subscription_status != Client.STATUS_CANCELLED:
+            client.subscription_status = Client.STATUS_CANCELLED
+            client.subscription_end_date = timezone.localdate()
+            client.save(update_fields=["subscription_status", "subscription_end_date", "updated_at"])
+
+        return Response(
+            {
+                "status": True,
+                "message": "Tenant cancelled successfully.",
                 "data": self.get_serializer(client).data,
             },
             status=status.HTTP_200_OK,
