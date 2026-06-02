@@ -224,6 +224,14 @@ class EventSessionSerializer(serializers.ModelSerializer):
             "staff_type": assignment.staff.staff_type,
             "people_summoned": assignment.number_of_persons,
             "role": role_name,
+            # Service category for waiter-type staff (VIP / VVIP / Normal / …).
+            # Lets the agency / contract portal show which grade of people to
+            # send. Empty string when the staff record has no waiter type.
+            "waiter_type": (
+                assignment.staff.waiter_type.name
+                if assignment.staff.waiter_type
+                else ""
+            ),
             # Response workflow
             "response_status": assignment.response_status,
             "decline_reason": assignment.decline_reason or "",
@@ -242,7 +250,11 @@ class EventSessionSerializer(serializers.ModelSerializer):
         request = self.context.get("request") if hasattr(self, "context") else None
         managers = []
         assignments = obj.staff_assignments.select_related(
-            "staff", "staff__user_account", "role_at_event", "staff__role"
+            "staff",
+            "staff__user_account",
+            "role_at_event",
+            "staff__role",
+            "staff__waiter_type",
         ).prefetch_related("response_history__responded_by")
         for assignment in assignments:
             if self._should_hide_from_assignee(assignment, request):
@@ -260,7 +272,11 @@ class EventSessionSerializer(serializers.ModelSerializer):
         request = self.context.get("request") if hasattr(self, "context") else None
         summoned_staff = []
         assignments = obj.staff_assignments.select_related(
-            "staff", "staff__user_account", "role_at_event", "staff__role"
+            "staff",
+            "staff__user_account",
+            "role_at_event",
+            "staff__role",
+            "staff__waiter_type",
         ).prefetch_related("response_history__responded_by")
         for assignment in assignments:
             if self._should_hide_from_assignee(assignment, request):

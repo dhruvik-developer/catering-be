@@ -357,7 +357,11 @@ class LoginViewSet(generics.GenericAPIView):
         user_type = "admin" if user.is_superuser or user.is_staff else "user"
         if getattr(connection, "schema_name", "public") != "public":
             if hasattr(user, "staff_profile"):
-                user_type = "staff"
+                # Mirror the employment type chosen at registration time so the
+                # login response carries the same type (agency / contract / fixed)
+                # instead of a flat "staff".
+                staff_type = getattr(user.staff_profile, "staff_type", None)
+                user_type = staff_type.lower() if staff_type else "staff"
             elif hasattr(user, "vendor_profile"):
                 user_type = "vendor"
 
